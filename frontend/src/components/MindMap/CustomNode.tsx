@@ -11,7 +11,7 @@ interface CustomNodeData {
 function CustomNode({ data, id, selected }: NodeProps<CustomNodeData>) {
   const [isEditing, setIsEditing] = useState(false)
   const [label, setLabel] = useState(data.label)
-  const debounceTimerRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const debounceTimerRef = useRef<number | undefined>(undefined)
 
   // Update label when data changes
   useEffect(() => {

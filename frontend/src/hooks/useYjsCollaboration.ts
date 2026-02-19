@@ -54,7 +54,7 @@ export function useYjsCollaboration({
     )
     providerRef.current = provider
 
-    let syncTimeout: NodeJS.Timeout
+    let syncTimeout: number
 
     // Connection status
     provider.on('status', (event: any) => {

@@ -49,7 +49,6 @@ export default function MindMapCanvas({ mindMapTitle }: MindMapCanvasProps) {
     setNodes,
     setEdges,
     findAllDescendants,
-    moveNodeWithDescendants,
     reparentNode,
   } = useMindMapStore();
 
@@ -250,7 +249,7 @@ export default function MindMapCanvas({ mindMapTitle }: MindMapCanvasProps) {
   }, [updateCursor]);
 
   // Handle node drag
-  const handleNodeDrag = useCallback((event: any, node: any) => {
+  const handleNodeDrag = useCallback((_event: any, node: any) => {
     try {
       // Initialize drag state on first drag
       if (!dragStateRef.current || dragStateRef.current.nodeId !== node.id) {
@@ -310,7 +309,7 @@ export default function MindMapCanvas({ mindMapTitle }: MindMapCanvasProps) {
   }, [nodes, selectedNodes, findAllDescendants, setNodes]);
 
   // Handle node drag stop
-  const handleNodeDragStop = useCallback((event: any, node: any) => {
+  const handleNodeDragStop = useCallback((_event: any, node: any) => {
     try {
       dragStateRef.current = null;
 

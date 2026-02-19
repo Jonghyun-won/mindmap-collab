@@ -34,7 +34,7 @@ function getColorForLevel(level: number): string {
 }
 
 // Calculate position for child nodes with left-right balance and collision detection
-function getChildPosition(parentNode: MindMapNode, existingNodes: MindMapNode[], level: number) {
+function getChildPosition(parentNode: MindMapNode, existingNodes: MindMapNode[], _level: number) {
   const baseX = parentNode.position.x;
   const baseY = parentNode.position.y;
 

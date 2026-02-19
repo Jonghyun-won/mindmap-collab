@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { Node, Edge } from 'reactflow';
+import { Edge } from 'reactflow';
 import { MindMapNode } from '../hooks/useMindMapStore';
 
 // Convert React Flow nodes to Yjs format
@@ -26,7 +26,7 @@ export function edgesToYMap(edges: Edge[], yEdges: Y.Map<any>) {
 // Convert Yjs nodes to React Flow format
 export function yMapToNodes(yNodes: Y.Map<any>): MindMapNode[] {
   const nodes: MindMapNode[] = [];
-  yNodes.forEach((value, key) => {
+  yNodes.forEach((value) => {
     nodes.push({
       id: value.id,
       type: value.type || 'custom',
@@ -41,7 +41,7 @@ export function yMapToNodes(yNodes: Y.Map<any>): MindMapNode[] {
 // Convert Yjs edges to React Flow format
 export function yMapToEdges(yEdges: Y.Map<any>): Edge[] {
   const edges: Edge[] = [];
-  yEdges.forEach((value, key) => {
+  yEdges.forEach((value) => {
     edges.push(value);
   });
   return edges;

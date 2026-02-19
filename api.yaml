@@ -1,0 +1,927 @@
+openapi: 3.0.0
+info:
+  title: Mind Map Collaboration API
+  version: 1.0.0
+  description: |
+    RESTful API for real-time collaborative mind mapping application.
+    Supports user authentication, mind map CRUD operations, and WebSocket-based
+    real-time collaboration using Yjs CRDT.
+
+    ## Authentication
+    All authenticated endpoints require a JWT Bearer token in the Authorization header.
+
+    ## Real-time Collaboration
+    WebSocket endpoint at `/ws/mindmap/{id}` provides real-time Yjs document synchronization.
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+  - url: https://api.mindmap.example.com
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      summary: Register new user account
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Invalid request (validation error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidEmail:
+                  value:
+                    error: "Validation Error"
+                    message: "Invalid email format"
+                    details: "Email must be a valid email address"
+                weakPassword:
+                  value:
+                    error: "Validation Error"
+                    message: "Password too weak"
+                    details: "Password must be at least 8 characters with uppercase, lowercase, and number"
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Conflict"
+                message: "User with this email already exists"
+                details: null
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      summary: Login with email and password
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Unauthorized"
+                message: "Invalid email or password"
+                details: null
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      summary: Logout current user
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Logged out successfully"
+        '401':
+          description: Unauthorized (invalid or missing token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/me:
+    get:
+      summary: Get current user information
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: User information retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized (invalid or expired token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Unauthorized"
+                message: "Invalid or expired token"
+                details: null
+
+  /mindmaps:
+    get:
+      summary: List user's mind maps
+      tags:
+        - Mind Maps
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sort
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [created_asc, created_desc, updated_asc, updated_desc, title_asc, title_desc]
+            default: updated_desc
+      responses:
+        '200':
+          description: List of mind maps
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MindMap'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Create new mind map
+      tags:
+        - Mind Maps
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMindMapRequest'
+      responses:
+        '201':
+          description: Mind map created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MindMap'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /mindmaps/{id}:
+    get:
+      summary: Get mind map details
+      tags:
+        - Mind Maps
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mind map UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Mind map details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MindMapDetail'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (user does not have access)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Forbidden"
+                message: "You do not have access to this mind map"
+                details: null
+        '404':
+          description: Mind map not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Not Found"
+                message: "Mind map not found"
+                details: null
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update mind map metadata
+      tags:
+        - Mind Maps
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mind map UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMindMapRequest'
+      responses:
+        '200':
+          description: Mind map updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MindMap'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (user does not have edit permission)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mind map not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Delete mind map
+      tags:
+        - Mind Maps
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mind map UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Mind map deleted successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (user is not the owner)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Forbidden"
+                message: "Only the owner can delete this mind map"
+                details: null
+        '404':
+          description: Mind map not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /mindmaps/{id}/collaborators:
+    get:
+      summary: List mind map collaborators
+      tags:
+        - Collaborators
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mind map UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of collaborators
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Collaborator'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (user does not have access)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mind map not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Add collaborator to mind map
+      tags:
+        - Collaborators
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mind map UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCollaboratorRequest'
+      responses:
+        '201':
+          description: Collaborator added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Collaborator'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (user does not have admin permission)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mind map or user not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Collaborator already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /mindmaps/{id}/collaborators/{user_id}:
+    put:
+      summary: Update collaborator permission
+      tags:
+        - Collaborators
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mind map UUID
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          description: User UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - permission
+              properties:
+                permission:
+                  type: string
+                  enum: [view, edit, admin]
+                  description: Permission level
+      responses:
+        '200':
+          description: Permission updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Collaborator'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (user does not have admin permission)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mind map or collaborator not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Remove collaborator from mind map
+      tags:
+        - Collaborators
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mind map UUID
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          description: User UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Collaborator removed successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (user does not have admin permission)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mind map or collaborator not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token obtained from /auth/login or /auth/register.
+        Include in Authorization header as: `Bearer <token>`
+
+  schemas:
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: User unique identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: "user@example.com"
+        name:
+          type: string
+          nullable: true
+          description: User display name
+          example: "John Doe"
+        created_at:
+          type: string
+          format: date-time
+          description: Account creation timestamp
+          example: "2024-01-15T10:30:00Z"
+
+    MindMap:
+      type: object
+      required:
+        - id
+        - title
+        - created_by
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Mind map unique identifier
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Mind map title
+          example: "Project Planning"
+        created_by:
+          type: string
+          format: uuid
+          description: Owner user ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2024-01-16T14:20:00Z"
+
+    MindMapDetail:
+      allOf:
+        - $ref: '#/components/schemas/MindMap'
+        - type: object
+          properties:
+            owner:
+              $ref: '#/components/schemas/User'
+              description: Mind map owner information
+            collaborators_count:
+              type: integer
+              minimum: 0
+              description: Number of collaborators
+              example: 3
+            yjs_state:
+              type: string
+              format: byte
+              nullable: true
+              description: Base64-encoded Yjs document state (BYTEA)
+              example: "AQIDBA=="
+
+    Collaborator:
+      type: object
+      required:
+        - id
+        - mind_map_id
+        - user_id
+        - permission
+        - joined_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Collaborator record unique identifier
+          example: "789e4567-e89b-12d3-a456-426614174001"
+        mind_map_id:
+          type: string
+          format: uuid
+          description: Mind map UUID
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        user_id:
+          type: string
+          format: uuid
+          description: User UUID
+          example: "550e8400-e29b-41d4-a716-446655440001"
+        user:
+          $ref: '#/components/schemas/User'
+          description: Collaborator user information
+        permission:
+          type: string
+          enum: [view, edit, admin]
+          description: |
+            Permission level:
+            - `view`: Can view mind map (read-only)
+            - `edit`: Can edit mind map content
+            - `admin`: Can edit and manage collaborators
+          example: "edit"
+        joined_at:
+          type: string
+          format: date-time
+          description: Collaboration start timestamp
+          example: "2024-01-16T09:00:00Z"
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: "user@example.com"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: User password
+          example: "SecurePass123!"
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: "newuser@example.com"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: User password (min 8 chars, must include uppercase, lowercase, and number)
+          example: "SecurePass123!"
+        name:
+          type: string
+          nullable: true
+          minLength: 1
+          maxLength: 100
+          description: User display name (optional)
+          example: "Jane Smith"
+
+    LoginResponse:
+      type: object
+      required:
+        - token
+        - token_type
+        - user
+      properties:
+        token:
+          type: string
+          description: JWT access token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        token_type:
+          type: string
+          enum: [bearer]
+          description: Token type (always "bearer")
+          example: "bearer"
+        user:
+          $ref: '#/components/schemas/User'
+          description: Authenticated user information
+
+    CreateMindMapRequest:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Mind map title
+          example: "New Project Mind Map"
+
+    UpdateMindMapRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Updated mind map title
+          example: "Updated Mind Map Title"
+
+    AddCollaboratorRequest:
+      type: object
+      required:
+        - user_email
+        - permission
+      properties:
+        user_email:
+          type: string
+          format: email
+          description: Email of user to add as collaborator
+          example: "collaborator@example.com"
+        permission:
+          type: string
+          enum: [view, edit, admin]
+          description: Permission level to grant
+          example: "edit"
+
+    Pagination:
+      type: object
+      required:
+        - page
+        - limit
+        - total
+        - total_pages
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Items per page
+          example: 20
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of items
+          example: 45
+        total_pages:
+          type: integer
+          minimum: 0
+          description: Total number of pages
+          example: 3
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type/category
+          example: "Validation Error"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Invalid email format"
+        details:
+          type: string
+          nullable: true
+          description: Additional error details or stack trace (debug mode only)
+          example: "Email must be a valid email address"
+
+tags:
+  - name: Authentication
+    description: User registration, login, and session management
+  - name: Mind Maps
+    description: Mind map CRUD operations
+  - name: Collaborators
+    description: Manage mind map collaborators and permissions

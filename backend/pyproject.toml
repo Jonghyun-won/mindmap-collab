@@ -1,0 +1,13 @@
+[project]
+name = "mindmap-backend"
+version = "0.1.0"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "psycopg2-binary",
+    "pydantic[email]",
+    "python-jose[cryptography]",
+    "passlib[bcrypt]",
+    "python-dotenv",
+]

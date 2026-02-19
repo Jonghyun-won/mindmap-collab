@@ -1,0 +1,220 @@
+import { Plus, Save, Trash2, Palette, Info } from 'lucide-react'
+import { useState } from 'react'
+
+interface EditorToolbarProps {
+  onAddNode: () => void
+  selectedNodeId?: string
+  onColorChange?: (color: string) => void
+  onDeleteNode?: () => void
+  onSave: () => void
+  isSaving: boolean
+  lastSaved: Date | null
+}
+
+const COLORS = [
+  { name: 'Indigo', value: '#6366f1' },
+  { name: 'Blue', value: '#3b82f6' },
+  { name: 'Green', value: '#10b981' },
+  { name: 'Amber', value: '#f59e0b' },
+  { name: 'Red', value: '#ef4444' },
+  { name: 'Purple', value: '#8b5cf6' },
+  { name: 'Pink', value: '#ec4899' },
+  { name: 'Slate', value: '#64748b' },
+]
+
+export default function EditorToolbar({
+  onAddNode,
+  selectedNodeId,
+  onColorChange,
+  onDeleteNode,
+  onSave,
+  isSaving,
+  lastSaved,
+}: EditorToolbarProps) {
+  const [showColorPicker, setShowColorPicker] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
+
+  return (
+    <>
+      {/* XMind style: Minimal top toolbar */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 px-4 py-2">
+        {/* Add node */}
+        <button
+          onClick={onAddNode}
+          className="p-2 hover:bg-gray-100 rounded-md transition-colors group"
+          title="노드 추가 (Enter: 형제 | Ctrl+Enter: 자식)"
+        >
+          <Plus className="w-5 h-5 text-gray-700" />
+        </button>
+
+        <div className="w-px h-6 bg-gray-200" />
+
+        {/* Color picker */}
+        <div className="relative">
+          <button
+            onClick={() => setShowColorPicker(!showColorPicker)}
+            disabled={!selectedNodeId}
+            className={`p-2 rounded-md transition-colors ${
+              selectedNodeId
+                ? 'hover:bg-gray-100 text-gray-700'
+                : 'text-gray-300 cursor-not-allowed'
+            }`}
+            title="Change color"
+          >
+            <Palette className="w-5 h-5" />
+          </button>
+
+          {/* Color palette popup */}
+          {showColorPicker && selectedNodeId && (
+            <>
+              <div
+                className="fixed inset-0 z-20"
+                onClick={() => setShowColorPicker(false)}
+              />
+              <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-30 bg-white rounded-lg shadow-xl border border-gray-200 p-3">
+                <div className="grid grid-cols-4 gap-2">
+                  {COLORS.map((color) => (
+                    <button
+                      key={color.value}
+                      onClick={() => {
+                        onColorChange?.(color.value)
+                        setShowColorPicker(false)
+                      }}
+                      className="w-10 h-10 rounded-lg border-2 border-gray-200 hover:border-gray-400 hover:scale-110 transition-all"
+                      style={{ backgroundColor: color.value }}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Delete */}
+        <button
+          onClick={onDeleteNode}
+          disabled={!selectedNodeId}
+          className={`p-2 rounded-md transition-colors ${
+            selectedNodeId
+              ? 'hover:bg-red-50 text-red-600'
+              : 'text-gray-300 cursor-not-allowed'
+          }`}
+          title="Delete node (Delete)"
+        >
+          <Trash2 className="w-5 h-5" />
+        </button>
+
+        <div className="w-px h-6 bg-gray-200" />
+
+        {/* Save button */}
+        <button
+          onClick={onSave}
+          disabled={isSaving}
+          className={`px-3 py-2 rounded-md transition-colors flex items-center gap-2 ${
+            isSaving
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-blue-500 hover:bg-blue-600 text-white'
+          }`}
+          title="Save mindmap (Ctrl+S)"
+        >
+          <Save className="w-4 h-4" />
+          <span className="text-sm font-medium">
+            {isSaving ? 'Saving...' : 'Save'}
+          </span>
+        </button>
+
+        {/* Help button */}
+        <button
+          onClick={() => setShowHelp(!showHelp)}
+          className="p-2 hover:bg-gray-100 rounded-md transition-colors text-gray-700"
+          title="Keyboard shortcuts"
+        >
+          <Info className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Last saved indicator */}
+      {lastSaved && !isSaving && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 text-xs text-gray-500 bg-white px-3 py-1 rounded-full shadow-sm border border-gray-200">
+          Saved at {lastSaved.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+        </div>
+      )}
+
+      {/* Help popup */}
+      {showHelp && (
+        <>
+          <div
+            className="fixed inset-0 z-20"
+            onClick={() => setShowHelp(false)}
+          />
+          <div className="absolute top-16 right-4 z-30 bg-white rounded-lg shadow-xl border border-gray-200 p-4 w-64">
+            <div className="font-semibold text-gray-800 mb-3 text-sm">⌨️ 단축키</div>
+            <div className="space-y-2 text-xs text-gray-600">
+              <div className="flex justify-between items-center gap-4">
+                <kbd className="kbd">Enter</kbd>
+                <span>수평 노드 (형제)</span>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <kbd className="kbd">Ctrl+Enter</kbd>
+                <span>하위 노드 (자식)</span>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <kbd className="kbd">Tab</kbd>
+                <span>하위 노드 (자식)</span>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <kbd className="kbd">Space</kbd>
+                <span>빠른 하위 추가</span>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <kbd className="kbd">F2</kbd>
+                <span>노드 편집</span>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <kbd className="kbd">Delete</kbd>
+                <span>노드 삭제</span>
+              </div>
+              <div className="border-t border-gray-200 my-2"></div>
+              <div className="flex justify-between items-center gap-4">
+                <kbd className="kbd">↑ ↓</kbd>
+                <span>부모/자식 이동</span>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <kbd className="kbd">← →</kbd>
+                <span>형제 간 이동</span>
+              </div>
+              <div className="border-t border-gray-200 my-2"></div>
+              <div className="flex justify-between items-center gap-4">
+                <kbd className="kbd">Ctrl+S</kbd>
+                <span>저장</span>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <kbd className="kbd">Ctrl+Z</kbd>
+                <span>실행 취소</span>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <kbd className="kbd">Ctrl+C/V</kbd>
+                <span>복사/붙여넣기</span>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      <style>{`
+        .kbd {
+          display: inline-block;
+          padding: 2px 6px;
+          background: #f3f4f6;
+          border: 1px solid #d1d5db;
+          border-radius: 4px;
+          font-family: monospace;
+          font-size: 11px;
+          font-weight: 600;
+          color: #374151;
+        }
+      `}</style>
+    </>
+  )
+}

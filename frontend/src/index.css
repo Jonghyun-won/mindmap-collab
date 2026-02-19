@@ -1,0 +1,77 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Pretendard Variable", -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+/* ReactFlow custom styles for XMind-like appearance */
+.react-flow {
+  min-height: 100%;
+  background: #ffffff;
+}
+
+.react-flow__edge-path {
+  stroke: #9ca3af;
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #3b82f6;
+}
+
+.react-flow__controls {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.react-flow__controls-button {
+  border: none;
+  background: white;
+}
+
+.react-flow__controls-button:hover {
+  background: #f3f4f6;
+}
+
+.react-flow__minimap {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* Selection box styling */
+.react-flow__selection {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid #3b82f6;
+}
+
+/* Node selection outline */
+.react-flow__node.selected {
+  outline: none;
+}
+
+/* Clean handle styling */
+.react-flow__handle {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Hide ReactFlow attribution/logo */
+.react-flow__panel.react-flow__attribution {
+  display: none !important;
+}

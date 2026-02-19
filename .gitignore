@@ -32,3 +32,6 @@ lerna-debug.log*
 *.swp
 *.swo
 *~
+# funnel-crew (auto-generated)
+.claude/
+component-hub/

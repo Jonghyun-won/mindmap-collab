@@ -1,0 +1,10 @@
+# Railway Configuration
+# This file defines how Railway should build and deploy your services
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+numReplicas = 1
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

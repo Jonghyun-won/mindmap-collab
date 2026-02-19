@@ -48,6 +48,12 @@ const server = Server.configure({
   async onLoadDocument({ documentName }) {
     console.log(`📄 Loading document: ${documentName}`);
   },
+
+  async onListen() {
+    console.log(`\n🚀 Hocuspocus WebSocket server running!`);
+    console.log(`   URL: ws://localhost:${config.port}`);
+    console.log(`   Ready for real-time collaboration! 🎉\n`);
+  },
 });
 
 // Health check endpoint
@@ -65,8 +71,4 @@ app.listen(httpPort, () => {
   console.log(`   Health check: http://localhost:${httpPort}/health`);
 });
 
-server.listen(() => {
-  console.log(`\n🚀 Hocuspocus WebSocket server running!`);
-  console.log(`   URL: ws://localhost:${config.port}`);
-  console.log(`   Ready for real-time collaboration! 🎉\n`);
-});
+server.listen();

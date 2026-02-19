@@ -1,11 +1,8 @@
 import { Server } from '@hocuspocus/server';
 import { Database } from '@hocuspocus/extension-database';
-import express from 'express';
 import { config } from './config';
 // import { database } from './extensions/database';
 // import { auth } from './extensions/auth';
-
-const app = express();
 
 // Simple in-memory database for development
 const database = new Database({
@@ -51,24 +48,10 @@ const server = Server.configure({
 
   async onListen() {
     console.log(`\n🚀 Hocuspocus WebSocket server running!`);
-    console.log(`   URL: ws://localhost:${config.port}`);
+    console.log(`   Port: ${config.port}`);
+    console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`   Ready for real-time collaboration! 🎉\n`);
   },
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    service: 'Hocuspocus WebSocket Server'
-  });
-});
-
-const httpPort = config.port + 1;
-app.listen(httpPort, () => {
-  console.log(`\n🌐 HTTP server running on http://localhost:${httpPort}`);
-  console.log(`   Health check: http://localhost:${httpPort}/health`);
 });
 
 server.listen();

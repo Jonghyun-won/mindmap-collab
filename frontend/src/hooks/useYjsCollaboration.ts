@@ -63,7 +63,7 @@ export function useYjsCollaboration({
 
       // Initialize data after connection
       if (event.status === 'connected') {
-        syncTimeout = setTimeout(() => {
+        syncTimeout = window.setTimeout(() => {
           if (yNodes.size === 0 && initialNodes.length > 0) {
             console.log('📥 Initializing with local data')
             isLocalChangeRef.current = true

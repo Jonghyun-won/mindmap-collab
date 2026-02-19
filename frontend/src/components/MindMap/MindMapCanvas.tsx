@@ -150,7 +150,7 @@ export default function MindMapCanvas({ mindMapTitle, documentId }: MindMapCanva
       }
 
       // Ctrl+Enter 또는 Tab: 자식 노드 추가 (하위)
-      if ((event.key === 'Enter' && isCtrl) || (event.key === 'Tab' && selectedNode)) {
+      if (selectedNode && ((event.key === 'Enter' && isCtrl) || event.key === 'Tab')) {
         event.preventDefault()
         event.stopPropagation()
         const newNodeId = addChildNode(selectedNode)

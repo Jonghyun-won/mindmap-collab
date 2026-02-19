@@ -26,7 +26,7 @@ function CustomNode({ data, id, selected }: NodeProps<CustomNodeData>) {
       clearTimeout(debounceTimerRef.current)
     }
 
-    debounceTimerRef.current = setTimeout(() => {
+    debounceTimerRef.current = window.setTimeout(() => {
       if (label.trim() && label !== data.label) {
         const event = new CustomEvent('nodeUpdate', {
           detail: { id, label: label.trim() },

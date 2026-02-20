@@ -1,4 +1,4 @@
-import { Plus, Save, Trash2, Palette, Info } from 'lucide-react'
+import { Plus, Save, Trash2, Palette, Info, Users } from 'lucide-react'
 import { useState } from 'react'
 
 interface EditorToolbarProps {
@@ -9,6 +9,7 @@ interface EditorToolbarProps {
   onSave: () => void
   isSaving: boolean
   lastSaved: Date | null
+  activeUsers?: number // 실시간 협업 인원 (추후 구현)
 }
 
 const COLORS = [
@@ -30,6 +31,7 @@ export default function EditorToolbar({
   onSave,
   isSaving,
   lastSaved,
+  activeUsers = 1, // 기본값: 1명 (본인)
 }: EditorToolbarProps) {
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
@@ -134,12 +136,24 @@ export default function EditorToolbar({
         </button>
       </div>
 
-      {/* Last saved indicator */}
-      {lastSaved && !isSaving && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 text-xs text-gray-500 bg-white px-3 py-1 rounded-full shadow-sm border border-gray-200">
-          Saved at {lastSaved.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+      {/* Collaboration indicator - Upper right */}
+      <div className="absolute top-3 right-4 z-10 flex items-center gap-2">
+        {/* Active users indicator */}
+        <div className="flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-lg shadow-sm border border-gray-200 px-3 py-1.5">
+          <Users className="w-4 h-4 text-blue-600" />
+          <span className="text-xs font-medium text-gray-700">
+            {activeUsers === 1 ? '나' : `${activeUsers}명`} 수정중
+          </span>
         </div>
-      )}
+
+        {/* Last saved time */}
+        {lastSaved && !isSaving && (
+          <div className="text-xs text-gray-500 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-sm border border-gray-200">
+            <span className="text-gray-400">최근 저장:</span>{' '}
+            {lastSaved.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+          </div>
+        )}
+      </div>
 
       {/* Help popup */}
       {showHelp && (

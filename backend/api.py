@@ -44,22 +44,15 @@ app = FastAPI(
 )
 
 # CORS Configuration
-# Get frontend URL from environment variable or use default
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
-allowed_origins = [
-    frontend_url,
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "https://*.railway.app",  # Allow all Railway frontend deployments
-]
-
-# If FRONTEND_URL contains railway.app, also allow it
-if "railway.app" in frontend_url:
-    # Also allow without specific subdomain for Railway deployments
-    allowed_origins.append("https://frontend-production-34d4.up.railway.app")
-
+# Allow localhost for development and Railway for production
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "https://frontend-production-34d4.up.railway.app",  # Production frontend
+    ],
     allow_origin_regex=r"https://.*\.railway\.app",  # Allow all Railway deployments
     allow_credentials=True,
     allow_methods=["*"],

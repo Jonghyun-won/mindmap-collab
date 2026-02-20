@@ -29,7 +29,7 @@ export default function Header({ user, title, showBackButton }: HeaderProps) {
               ← 뒤로
             </button>
           )}
-          {title || <h1 className="text-2xl font-bold text-gray-900">MindMap Collab</h1>}
+          {title || <h1 className="text-2xl font-bold text-gray-900">FunnelMind</h1>}
         </div>
         {user && (
           <div className="flex items-center gap-4">

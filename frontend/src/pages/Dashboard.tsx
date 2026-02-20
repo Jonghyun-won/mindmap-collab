@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Trash2 } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { MindMap } from '@/types/mindmap'
 import { useAuth } from '@/contexts/AuthContext'
@@ -39,6 +40,21 @@ export default function Dashboard() {
     }
   }
 
+  const deleteMindMap = async (id: string, title: string, event: React.MouseEvent) => {
+    event.stopPropagation() // Prevent card click navigation
+
+    const confirmed = window.confirm(`"${title}" 마인드맵을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)
+    if (!confirmed) return
+
+    try {
+      await apiClient.deleteMindMap(id)
+      setMindMaps(mindMaps.filter(m => m.id !== id))
+    } catch (error) {
+      console.error('Error deleting mind map:', error)
+      alert('마인드맵 삭제에 실패했습니다')
+    }
+  }
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     const now = new Date()
@@ -65,7 +81,7 @@ export default function Dashboard() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
               </svg>
             </div>
-            <h1 className="text-xl font-bold text-gray-900">MindMap</h1>
+            <h1 className="text-xl font-bold text-gray-900">FunnelMind</h1>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-600">{user?.email}</span>
@@ -124,8 +140,17 @@ export default function Dashboard() {
               <div
                 key={mindMap.id}
                 onClick={() => navigate(`/editor/${mindMap.id}`)}
-                className="bg-white rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-md cursor-pointer transition-all p-5"
+                className="bg-white rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-md cursor-pointer transition-all p-5 relative group"
               >
+                {/* Delete button */}
+                <button
+                  onClick={(e) => deleteMindMap(mindMap.id, mindMap.title, e)}
+                  className="absolute top-3 right-3 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                  title="삭제"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+
                 <div className="flex items-start justify-between mb-3">
                   <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />

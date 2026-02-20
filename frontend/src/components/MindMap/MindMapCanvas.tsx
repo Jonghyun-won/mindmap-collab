@@ -319,39 +319,21 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
     try {
       dragStateRef.current = null
 
-      console.log('🎯 Drag stopped for node:', node.id, 'at position:', node.position)
-      console.log('📍 All nodes positions:', nodes.map(n => ({ id: n.id, label: n.data.label, x: n.position.x, y: n.position.y })))
-
-      // Find the closest node within range
-      let closestNode = null
-      let minDistance = 100
-
-      nodes.forEach(n => {
-        if (n.id === node.id) return
-
+      const droppedOnNode = nodes.find((n: any) => {
+        if (n.id === node.id) return false
         const dx = Math.abs(n.position.x - node.position.x)
         const dy = Math.abs(n.position.y - node.position.y)
-        const distance = Math.sqrt(dx * dx + dy * dy)
-
-        console.log(`📏 Distance to ${n.data.label}:`, distance, `(dx: ${dx}, dy: ${dy})`)
-
-        if (distance < minDistance) {
-          closestNode = n
-          minDistance = distance
-        }
+        return dx < 100 && dy < 100
       })
 
-      if (closestNode) {
-        console.log('✅ Closest node found:', closestNode.data.label, 'at distance:', minDistance)
-
+      if (droppedOnNode) {
         // Check if we're dragging multiple selected nodes
         if (selectedNodes.length > 1 && selectedNodes.includes(node.id)) {
-          console.log('🔄 Multi-node reparenting:', selectedNodes.length, 'nodes')
           // Multi-node reparenting
           let allDescendants: string[] = []
 
           // Collect all descendants of all selected nodes
-          selectedNodes.forEach(selectedId => {
+          selectedNodes.forEach((selectedId: string) => {
             const descendants = findAllDescendants(selectedId, nodes)
             allDescendants = [...allDescendants, ...descendants]
           })
@@ -360,28 +342,19 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
           allDescendants = [...new Set(allDescendants)]
 
           // Check if drop target is a descendant of any selected node
-          if (!allDescendants.includes(closestNode.id) && !selectedNodes.includes(closestNode.id)) {
-            console.log('✨ Reparenting all selected nodes to:', closestNode.data.label)
+          if (!allDescendants.includes(droppedOnNode.id) && !selectedNodes.includes(droppedOnNode.id)) {
             // Reparent all selected nodes to the drop target
-            selectedNodes.forEach(selectedId => {
-              reparentNode(selectedId, closestNode.id)
+            selectedNodes.forEach((selectedId: string) => {
+              reparentNode(selectedId, droppedOnNode.id)
             })
-          } else {
-            console.log('❌ Cannot reparent: target is descendant or selected')
           }
         } else {
-          console.log('🔄 Single node reparenting')
           // Single node reparenting (original logic)
           const descendants = findAllDescendants(node.id, nodes)
-          if (!descendants.includes(closestNode.id) && closestNode.id !== node.id) {
-            console.log('✨ Reparenting to:', closestNode.data.label)
-            reparentNode(node.id, closestNode.id)
-          } else {
-            console.log('❌ Cannot reparent: target is descendant')
+          if (!descendants.includes(droppedOnNode.id) && droppedOnNode.id !== node.id) {
+            reparentNode(node.id, droppedOnNode.id)
           }
         }
-      } else {
-        console.log('❌ No node close enough for reparenting')
       }
     } catch (error) {
       console.error('Error in handleNodeDragStop:', error)

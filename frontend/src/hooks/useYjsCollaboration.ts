@@ -71,13 +71,13 @@ export function useYjsCollaboration({
     })
 
     // Awareness (online users)
-    if (provider.awareness) {
-      provider.awareness.on('change', () => {
-        const states = provider.awareness.getStates()
+    provider.awareness?.on('change', () => {
+      const states = provider.awareness?.getStates()
+      if (states) {
         setOnlineUsers(states.size)
         console.log('👥 Online users:', states.size)
-      })
-    }
+      }
+    })
 
     // Listen for sync events
     provider.on('sync', (isSynced: boolean) => {

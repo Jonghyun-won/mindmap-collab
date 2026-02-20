@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Edit2 } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { MindMap } from '@/types/mindmap'
 import { useAuth } from '@/contexts/AuthContext'
@@ -10,6 +10,8 @@ export default function Dashboard() {
   const [mindMaps, setMindMaps] = useState<MindMap[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -52,6 +54,40 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error deleting mind map:', error)
       alert('마인드맵 삭제에 실패했습니다')
+    }
+  }
+
+  const startEditing = (id: string, title: string, event: React.MouseEvent) => {
+    event.stopPropagation()
+    setEditingId(id)
+    setEditingTitle(title)
+  }
+
+  const saveRename = async (id: string, event?: React.MouseEvent | React.KeyboardEvent) => {
+    if (event) event.stopPropagation()
+
+    if (!editingTitle.trim()) {
+      setEditingId(null)
+      return
+    }
+
+    try {
+      const updated = await apiClient.updateMindMap(id, editingTitle.trim())
+      setMindMaps(mindMaps.map(m => m.id === id ? updated : m))
+      setEditingId(null)
+    } catch (error) {
+      console.error('Error renaming mind map:', error)
+      alert('이름 변경에 실패했습니다')
+      setEditingId(null)
+    }
+  }
+
+  const handleKeyDown = (id: string, event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      saveRename(id, event)
+    } else if (event.key === 'Escape') {
+      event.stopPropagation()
+      setEditingId(null)
     }
   }
 
@@ -139,26 +175,51 @@ export default function Dashboard() {
             {mindMaps.map((mindMap) => (
               <div
                 key={mindMap.id}
-                onClick={() => navigate(`/editor/${mindMap.id}`)}
+                onClick={() => editingId !== mindMap.id && navigate(`/editor/${mindMap.id}`)}
                 className="bg-white rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-md cursor-pointer transition-all p-5 relative group"
               >
-                {/* Delete button */}
-                <button
-                  onClick={(e) => deleteMindMap(mindMap.id, mindMap.title, e)}
-                  className="absolute top-3 right-3 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                  title="삭제"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {/* Action buttons */}
+                <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => startEditing(mindMap.id, mindMap.title, e)}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                    title="이름 변경"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => deleteMindMap(mindMap.id, mindMap.title, e)}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                    title="삭제"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
 
                 <div className="flex items-start justify-between mb-3">
                   <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-                  {mindMap.title}
-                </h3>
+
+                {/* Editable title */}
+                {editingId === mindMap.id ? (
+                  <input
+                    type="text"
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onBlur={() => saveRename(mindMap.id)}
+                    onKeyDown={(e) => handleKeyDown(mindMap.id, e)}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                    className="text-lg font-semibold text-gray-900 mb-2 w-full border-2 border-blue-500 rounded px-2 py-1 focus:outline-none"
+                  />
+                ) : (
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
+                    {mindMap.title}
+                  </h3>
+                )}
+
                 <p className="text-sm text-gray-500">
                   {formatDate(mindMap.updated_at)}
                 </p>

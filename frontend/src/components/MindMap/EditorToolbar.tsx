@@ -1,7 +1,10 @@
-import { Plus, Save, Trash2, Palette, Info, Users } from 'lucide-react'
+import { Plus, Save, Trash2, Palette, Info, Users, ArrowLeft, Share2 } from 'lucide-react'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 interface EditorToolbarProps {
+  mindMapTitle?: string
+  onTitleSave?: (newTitle: string) => void
   onAddNode: () => void
   selectedNodeId?: string
   onColorChange?: (color: string) => void
@@ -10,6 +13,7 @@ interface EditorToolbarProps {
   isSaving: boolean
   lastSaved: Date | null
   activeUsers?: number // 실시간 협업 인원 (추후 구현)
+  onShareClick?: () => void
 }
 
 const COLORS = [
@@ -24,6 +28,8 @@ const COLORS = [
 ]
 
 export default function EditorToolbar({
+  mindMapTitle = 'Untitled',
+  onTitleSave,
   onAddNode,
   selectedNodeId,
   onColorChange,
@@ -32,13 +38,66 @@ export default function EditorToolbar({
   isSaving,
   lastSaved,
   activeUsers = 1, // 기본값: 1명 (본인)
+  onShareClick,
 }: EditorToolbarProps) {
+  const navigate = useNavigate()
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editedTitle, setEditedTitle] = useState(mindMapTitle)
+
+  const handleTitleSave = () => {
+    if (editedTitle.trim() && onTitleSave) {
+      onTitleSave(editedTitle.trim())
+    }
+    setIsEditingTitle(false)
+  }
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleTitleSave()
+    } else if (e.key === 'Escape') {
+      setEditedTitle(mindMapTitle)
+      setIsEditingTitle(false)
+    }
+  }
 
   return (
     <>
-      {/* XMind style: Minimal top toolbar */}
+      {/* Left: Back button and Title */}
+      <div className="absolute top-3 left-4 z-10 flex items-center gap-3">
+        <button
+          onClick={() => navigate('/')}
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors bg-white/95 backdrop-blur-sm shadow-sm border border-gray-200"
+          title="대시보드로"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-700" />
+        </button>
+
+        {isEditingTitle ? (
+          <input
+            type="text"
+            value={editedTitle}
+            onChange={(e) => setEditedTitle(e.target.value)}
+            onBlur={handleTitleSave}
+            onKeyDown={handleTitleKeyDown}
+            autoFocus
+            className="px-3 py-2 text-lg font-semibold border-2 border-blue-500 rounded-lg focus:outline-none bg-white shadow-sm min-w-[200px]"
+          />
+        ) : (
+          <button
+            onClick={() => {
+              setEditedTitle(mindMapTitle)
+              setIsEditingTitle(true)
+            }}
+            className="px-3 py-2 text-lg font-semibold text-gray-800 hover:text-blue-600 transition-colors bg-white/95 backdrop-blur-sm shadow-sm border border-gray-200 rounded-lg hover:border-blue-400"
+          >
+            {mindMapTitle}
+          </button>
+        )}
+      </div>
+
+      {/* Center: Minimal top toolbar */}
       <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 px-4 py-2">
         {/* Add node */}
         <button
@@ -108,6 +167,17 @@ export default function EditorToolbar({
         </button>
 
         <div className="w-px h-6 bg-gray-200" />
+
+        {/* Share button */}
+        {onShareClick && (
+          <button
+            onClick={onShareClick}
+            className="p-2 hover:bg-gray-100 rounded-md transition-colors text-gray-700"
+            title="Share mindmap"
+          >
+            <Share2 className="w-5 h-5" />
+          </button>
+        )}
 
         {/* Save button */}
         <button

@@ -24,12 +24,12 @@ def login(request: LoginRequest) -> LoginResponse:
     conn.close()
 
     if not row:
-        raise AuthenticationError("Invalid email or password")
+        raise AuthenticationError("등록되지 않은 이메일입니다")
 
     user_id, email, name, password_hash, created_at = row
 
     if not verify_password(request.password, password_hash):
-        raise AuthenticationError("Invalid email or password")
+        raise AuthenticationError("비밀번호가 틀렸습니다")
 
     token = create_jwt_token(str(user_id))
 

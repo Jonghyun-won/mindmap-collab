@@ -27,7 +27,7 @@ export default function LoginForm({ onToggle }: { onToggle: () => void }) {
       <div className="w-full max-w-md p-6">
         <div className="bg-white rounded-lg shadow-md p-8">
           <h1 className="text-2xl font-bold text-center text-gray-900 mb-8">
-            MindMap Collab
+            FunnelMind
           </h1>
 
           <form onSubmit={handleSubmit} className="space-y-4">

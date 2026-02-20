@@ -16,7 +16,9 @@ from mindmaps.model import (
     CreateMindMapRequest,
     UpdateMindMapRequest,
     Pagination,
-    Permission
+    Permission,
+    AddCollaboratorRequest,
+    UpdateCollaboratorPermissionRequest
 )
 
 # Import auth functions
@@ -31,6 +33,12 @@ from mindmaps.create import create_mindmap
 from mindmaps.get_mindmap import get_mindmap
 from mindmaps.update import update_mindmap
 from mindmaps.delete import delete_mindmap
+
+# Import collaborators functions
+from collaborators.list import list_collaborators
+from collaborators.add import add_collaborator
+from collaborators.update import update_collaborator_permission
+from collaborators.delete import delete_collaborator
 
 # Import auth helper for token verification
 from utils.auth_helper import verify_jwt_token
@@ -273,6 +281,77 @@ def delete_mindmap_endpoint(
         raise
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Collaborators Routes
+# ============================================================================
+
+@app.get("/mindmaps/{id}/collaborators")
+def list_collaborators_endpoint(
+    id: str,
+    token: str = Depends(get_current_user)
+):
+    """List collaborators for a mind map."""
+    try:
+        return list_collaborators(token, id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/mindmaps/{id}/collaborators")
+def add_collaborator_endpoint(
+    id: str,
+    request: AddCollaboratorRequest,
+    token: str = Depends(get_current_user)
+):
+    """Add a collaborator to a mind map."""
+    try:
+        return add_collaborator(token, id, request)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/mindmaps/{id}/collaborators/{user_id}")
+def update_collaborator_permission_endpoint(
+    id: str,
+    user_id: str,
+    request: UpdateCollaboratorPermissionRequest,
+    token: str = Depends(get_current_user)
+):
+    """Update collaborator permission."""
+    try:
+        return update_collaborator_permission(token, id, user_id, request)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/mindmaps/{id}/collaborators/{user_id}", status_code=204)
+def delete_collaborator_endpoint(
+    id: str,
+    user_id: str,
+    token: str = Depends(get_current_user)
+):
+    """Remove a collaborator."""
+    try:
+        delete_collaborator(token, id, user_id)
+        return None
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

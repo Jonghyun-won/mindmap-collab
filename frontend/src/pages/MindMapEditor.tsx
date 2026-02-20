@@ -25,9 +25,25 @@ export default function MindMapEditor() {
     }
   }
 
+  const handleTitleSave = async (newTitle: string) => {
+    if (!id || !newTitle.trim()) return
+
+    try {
+      await apiClient.updateMindMap(id, newTitle.trim())
+      setMindMapTitle(newTitle.trim())
+    } catch (error) {
+      console.error('Error updating title:', error)
+      alert('제목 변경에 실패했습니다')
+    }
+  }
+
   return (
     <div className="w-screen h-screen overflow-hidden">
-      <MindMapCanvas mindMapTitle={mindMapTitle} documentId={id || 'default'} />
+      <MindMapCanvas
+        mindMapTitle={mindMapTitle}
+        documentId={id || 'default'}
+        onTitleSave={handleTitleSave}
+      />
     </div>
   )
 }

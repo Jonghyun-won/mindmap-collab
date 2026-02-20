@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   Node,
   Edge,
@@ -63,7 +63,7 @@ function getSiblingPosition(currentNode: MindMapNode, existingNodes: MindMapNode
   )
 
   const level = currentNode.data.level || 0
-  const horizontalSpacing = level === 1 ? 300 : Math.max(200 - (level * 20), 120)
+  const horizontalSpacing = level === 1 ? 400 : Math.max(300 - (level * 30), 200)
 
   // Place to the right of the last sibling
   if (siblings.length > 0) {
@@ -86,7 +86,9 @@ interface HistoryState {
   edges: Edge[]
 }
 
-export function useMindMapStore() {
+export function useMindMapStore(documentId?: string) {
+  const storageKey = documentId ? `mindmap_${documentId}` : null
+
   const [nodes, setNodes] = useState<MindMapNode[]>([
     {
       id: '1',
@@ -98,6 +100,37 @@ export function useMindMapStore() {
   const [edges, setEdges] = useState<Edge[]>([])
   const [history, setHistory] = useState<HistoryState[]>([])
   const [clipboard, setClipboard] = useState<MindMapNode | null>(null)
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    if (storageKey) {
+      const saved = localStorage.getItem(storageKey)
+      if (saved) {
+        try {
+          const { nodes: savedNodes, edges: savedEdges } = JSON.parse(saved)
+          if (savedNodes && savedNodes.length > 0) {
+            setNodes(savedNodes)
+            setEdges(savedEdges || [])
+            console.log('Loaded from localStorage:', savedNodes.length, 'nodes')
+          }
+        } catch (error) {
+          console.error('Failed to load from localStorage:', error)
+        }
+      }
+    }
+  }, [storageKey])
+
+  // Save to localStorage whenever nodes/edges change (debounced)
+  useEffect(() => {
+    if (storageKey && nodes.length > 0) {
+      const timeoutId = setTimeout(() => {
+        localStorage.setItem(storageKey, JSON.stringify({ nodes, edges }))
+        console.log('Saved to localStorage:', nodes.length, 'nodes')
+      }, 500) // Debounce 500ms
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [nodes, edges, storageKey])
 
   // Save to history before making changes
   const saveHistory = useCallback(() => {

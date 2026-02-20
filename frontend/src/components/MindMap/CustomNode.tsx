@@ -123,11 +123,11 @@ function CustomNode({ data, id, selected }: NodeProps<CustomNodeData>) {
         className={`
           ${getPadding()} ${getBorderRadius()} ${getFontSize()} ${getMinSize()}
           max-w-[400px]
-          border-2 border-gray-300 shadow-2xl
+          shadow-2xl
           transition-all duration-200
           ${selected
-            ? 'ring-4 ring-blue-400 ring-opacity-50 shadow-xl scale-105 border-blue-500'
-            : 'hover:shadow-lg hover:scale-102'
+            ? 'border-4 border-red-500 shadow-xl scale-105'
+            : 'border-2 border-gray-300 hover:shadow-lg hover:scale-102'
           }
         `}
         style={{

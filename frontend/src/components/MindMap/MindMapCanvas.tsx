@@ -6,11 +6,14 @@ import ReactFlow, {
   NodeTypes,
   SelectionMode,
   BackgroundVariant,
+  Panel,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { Map } from 'lucide-react'
 
 import CustomNode from './CustomNode'
 import EditorToolbar from './EditorToolbar'
+import ShareModal from './ShareModal'
 import { useMindMapStore } from '@/hooks/useMindMapStore'
 import { useSaveMindMap } from '@/hooks/useSaveMindMap'
 
@@ -21,9 +24,10 @@ const nodeTypes: NodeTypes = {
 interface MindMapCanvasProps {
   mindMapTitle: string
   documentId: string
+  onTitleSave?: (newTitle: string) => void
 }
 
-export default function MindMapCanvas({ mindMapTitle, documentId }: MindMapCanvasProps) {
+export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }: MindMapCanvasProps) {
   const {
     nodes,
     edges,
@@ -42,7 +46,7 @@ export default function MindMapCanvas({ mindMapTitle, documentId }: MindMapCanva
     setNodes,
     findAllDescendants,
     reparentNode,
-  } = useMindMapStore()
+  } = useMindMapStore(documentId)
 
   // Track dragging state
   const dragStateRef = useRef<{
@@ -57,15 +61,26 @@ export default function MindMapCanvas({ mindMapTitle, documentId }: MindMapCanva
 
   // Manual save handler
   const handleSave = useCallback(async () => {
-    // For now, save without Yjs - just use current nodes/edges state
-    const success = await saveMindMap(documentId, mindMapTitle, null, { nodes, edges })
-    if (!success) {
-      alert('Failed to save mindmap')
+    // Save to localStorage (immediate)
+    if (documentId) {
+      localStorage.setItem(`mindmap_${documentId}`, JSON.stringify({ nodes, edges }))
+      console.log('Saved to localStorage:', nodes.length, 'nodes')
+    }
+
+    // Also save title to backend
+    try {
+      await saveMindMap(documentId, mindMapTitle, null, { nodes, edges })
+      console.log('Saved to backend')
+    } catch (error) {
+      console.warn('Backend save failed, but localStorage saved:', error)
+      // Don't show alert - localStorage save is enough for now
     }
   }, [documentId, mindMapTitle, nodes, edges, saveMindMap])
 
   const [selectedNode, setSelectedNode] = useState<string | undefined>()
   const [selectedNodes, setSelectedNodes] = useState<string[]>([])
+  const [showMiniMap, setShowMiniMap] = useState(true)
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
 
   // Handle node selection
   const onSelectionChange = useCallback(({ nodes }: any) => {
@@ -88,8 +103,15 @@ export default function MindMapCanvas({ mindMapTitle, documentId }: MindMapCanva
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Ignore if typing in input
-      if ((event.target as HTMLElement).tagName === 'INPUT') {
+      const target = event.target as HTMLElement
+
+      // Ignore if typing in input, textarea, or contentEditable
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.hasAttribute('contenteditable')
+      ) {
         return
       }
 
@@ -167,14 +189,7 @@ export default function MindMapCanvas({ mindMapTitle, documentId }: MindMapCanva
         return
       }
 
-      // Space: 빠른 자식 노드 추가
-      if (event.key === ' ' && selectedNode) {
-        event.preventDefault()
-        event.stopPropagation()
-        const newNodeId = addChildNode(selectedNode)
-        setTimeout(() => setSelectedNode(newNodeId), 100)
-        return
-      }
+      // Space key removed - use Tab or Ctrl+Enter for child nodes
 
       // F2: 현재 노드 편집
       if (event.key === 'F2' && selectedNode) {
@@ -304,29 +319,82 @@ export default function MindMapCanvas({ mindMapTitle, documentId }: MindMapCanva
     try {
       dragStateRef.current = null
 
-      const droppedOnNode = nodes.find(n => {
-        if (n.id === node.id) return false
+      console.log('🎯 Drag stopped for node:', node.id, 'at position:', node.position)
+      console.log('📍 All nodes positions:', nodes.map(n => ({ id: n.id, label: n.data.label, x: n.position.x, y: n.position.y })))
+
+      // Find the closest node within range
+      let closestNode = null
+      let minDistance = 100
+
+      nodes.forEach(n => {
+        if (n.id === node.id) return
+
         const dx = Math.abs(n.position.x - node.position.x)
         const dy = Math.abs(n.position.y - node.position.y)
-        return dx < 50 && dy < 50
+        const distance = Math.sqrt(dx * dx + dy * dy)
+
+        console.log(`📏 Distance to ${n.data.label}:`, distance, `(dx: ${dx}, dy: ${dy})`)
+
+        if (distance < minDistance) {
+          closestNode = n
+          minDistance = distance
+        }
       })
 
-      if (droppedOnNode) {
-        const descendants = findAllDescendants(node.id, nodes)
-        if (!descendants.includes(droppedOnNode.id) && droppedOnNode.id !== node.id) {
-          reparentNode(node.id, droppedOnNode.id)
+      if (closestNode) {
+        console.log('✅ Closest node found:', closestNode.data.label, 'at distance:', minDistance)
+
+        // Check if we're dragging multiple selected nodes
+        if (selectedNodes.length > 1 && selectedNodes.includes(node.id)) {
+          console.log('🔄 Multi-node reparenting:', selectedNodes.length, 'nodes')
+          // Multi-node reparenting
+          let allDescendants: string[] = []
+
+          // Collect all descendants of all selected nodes
+          selectedNodes.forEach(selectedId => {
+            const descendants = findAllDescendants(selectedId, nodes)
+            allDescendants = [...allDescendants, ...descendants]
+          })
+
+          // Remove duplicates
+          allDescendants = [...new Set(allDescendants)]
+
+          // Check if drop target is a descendant of any selected node
+          if (!allDescendants.includes(closestNode.id) && !selectedNodes.includes(closestNode.id)) {
+            console.log('✨ Reparenting all selected nodes to:', closestNode.data.label)
+            // Reparent all selected nodes to the drop target
+            selectedNodes.forEach(selectedId => {
+              reparentNode(selectedId, closestNode.id)
+            })
+          } else {
+            console.log('❌ Cannot reparent: target is descendant or selected')
+          }
+        } else {
+          console.log('🔄 Single node reparenting')
+          // Single node reparenting (original logic)
+          const descendants = findAllDescendants(node.id, nodes)
+          if (!descendants.includes(closestNode.id) && closestNode.id !== node.id) {
+            console.log('✨ Reparenting to:', closestNode.data.label)
+            reparentNode(node.id, closestNode.id)
+          } else {
+            console.log('❌ Cannot reparent: target is descendant')
+          }
         }
+      } else {
+        console.log('❌ No node close enough for reparenting')
       }
     } catch (error) {
       console.error('Error in handleNodeDragStop:', error)
     }
-  }, [nodes, findAllDescendants, reparentNode])
+  }, [nodes, selectedNodes, findAllDescendants, reparentNode])
 
   return (
     <div className="w-full h-full relative bg-white">
       {/* Toolbar - XMind style top toolbar (60px height) */}
       <div className="h-[60px] relative">
         <EditorToolbar
+          mindMapTitle={mindMapTitle}
+          onTitleSave={onTitleSave}
           onAddNode={addNode}
           selectedNodeId={selectedNode}
           onColorChange={handleColorChange}
@@ -334,6 +402,7 @@ export default function MindMapCanvas({ mindMapTitle, documentId }: MindMapCanva
           onSave={handleSave}
           isSaving={isSaving}
           lastSaved={lastSaved}
+          onShareClick={() => setIsShareModalOpen(true)}
         />
       </div>
 
@@ -374,13 +443,39 @@ export default function MindMapCanvas({ mindMapTitle, documentId }: MindMapCanva
             showInteractive={false}
             className="bg-white border border-gray-200 rounded-lg shadow-sm"
           />
-          <MiniMap
-            nodeColor={(node: any) => node.data.color || '#6366f1'}
-            className="bg-white border border-gray-200 rounded-lg shadow-sm"
-            maskColor="rgba(0, 0, 0, 0.05)"
-          />
+
+          {/* MiniMap toggle button */}
+          <Panel position="bottom-left" className="m-2">
+            <button
+              onClick={() => setShowMiniMap(!showMiniMap)}
+              className="p-2 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg shadow-sm transition-colors"
+              title={showMiniMap ? '미니맵 숨기기' : '미니맵 보기'}
+            >
+              <Map className={`w-5 h-5 ${showMiniMap ? 'text-blue-600' : 'text-gray-400'}`} />
+            </button>
+          </Panel>
+
+          {showMiniMap && (
+            <MiniMap
+              nodeColor={(node: any) => node.data.color || '#6366f1'}
+              className="!border-2 !border-gray-200 hover:!border-red-500 !rounded-lg !shadow-lg transition-all"
+              style={{ backgroundColor: 'white' }}
+              maskColor="rgba(0, 0, 0, 0.05)"
+              position="bottom-right"
+              pannable
+              zoomable
+            />
+          )}
         </ReactFlow>
       </div>
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        mindMapId={documentId}
+        mindMapTitle={mindMapTitle}
+      />
     </div>
   )
 }

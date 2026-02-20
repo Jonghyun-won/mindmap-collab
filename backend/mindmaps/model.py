@@ -60,6 +60,10 @@ class AddCollaboratorRequest(BaseModel):
     permission: Permission
 
 
+class UpdateCollaboratorPermissionRequest(BaseModel):
+    permission: Permission
+
+
 # Pagination model
 class Pagination(BaseModel):
     page: int = Field(..., ge=1)

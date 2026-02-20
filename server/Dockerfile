@@ -4,18 +4,18 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY apps/server/package*.json ./apps/server/
 
 # Install dependencies
-RUN npm install --workspace=apps/server
+RUN npm install
 
 # Copy source code
-COPY apps/server ./apps/server
+COPY . .
 
-# Build
-WORKDIR /app/apps/server
+# Build TypeScript
 RUN npm run build
 
-EXPOSE 3000
+# Expose port (Railway will use PORT env variable)
+EXPOSE 3001
 
+# Start server
 CMD ["npm", "start"]

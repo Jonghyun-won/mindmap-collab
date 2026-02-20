@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import * as Y from 'yjs'
-import { WebsocketProvider } from 'y-websocket'
+import { HocuspocusProvider } from '@hocuspocus/provider'
 import { MindMapNode } from '@/hooks/useMindMapStore'
 import { Edge } from 'reactflow'
 import { yMapToNodes, yMapToEdges, syncNodesToYjs, syncEdgesToYjs } from '@/lib/mindmap-sync'
@@ -24,7 +24,7 @@ export function useYjsCollaboration({
   const [onlineUsers, setOnlineUsers] = useState(0)
 
   const ydocRef = useRef<Y.Doc | null>(null)
-  const providerRef = useRef<WebsocketProvider | null>(null)
+  const providerRef = useRef<HocuspocusProvider | null>(null)
   const isLocalChangeRef = useRef(false)
 
   useEffect(() => {
@@ -40,18 +40,13 @@ export function useYjsCollaboration({
 
     console.log('🔗 Connecting to WebSocket:', wsUrl, 'Document:', documentId)
 
-    // Create WebSocket provider with retry
-    const provider = new WebsocketProvider(
-      wsUrl,
-      documentId,
-      ydoc,
-      {
-        connect: true,
-        params: {},
-        WebSocketPolyfill: undefined,
-        resyncInterval: 5000,
-      }
-    )
+    // Create Hocuspocus provider
+    const provider = new HocuspocusProvider({
+      url: wsUrl,
+      name: documentId,
+      document: ydoc,
+      connect: true,
+    })
     providerRef.current = provider
 
     let syncTimeout: number
@@ -76,11 +71,13 @@ export function useYjsCollaboration({
     })
 
     // Awareness (online users)
-    provider.awareness.on('change', () => {
-      const states = provider.awareness.getStates()
-      setOnlineUsers(states.size)
-      console.log('👥 Online users:', states.size)
-    })
+    if (provider.awareness) {
+      provider.awareness.on('change', () => {
+        const states = provider.awareness.getStates()
+        setOnlineUsers(states.size)
+        console.log('👥 Online users:', states.size)
+      })
+    }
 
     // Listen for sync events
     provider.on('sync', (isSynced: boolean) => {

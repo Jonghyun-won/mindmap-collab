@@ -7,6 +7,9 @@ export default function MindMapEditor() {
   const { id } = useParams<{ id: string }>()
   const [mindMapTitle, setMindMapTitle] = useState('Untitled Mind Map')
 
+  // DEBUG: Log documentId
+  console.log('🆔 MindMapEditor - documentId:', id)
+
   // Load mind map title
   useEffect(() => {
     if (id) {

@@ -7,15 +7,21 @@ export default function MindMapEditor() {
   const { id } = useParams<{ id: string }>()
   const [mindMapTitle, setMindMapTitle] = useState('Untitled Mind Map')
 
-  // DEBUG: Log documentId
-  console.log('🆔 MindMapEditor - documentId:', id)
+  // FALLBACK: Extract ID from URL if useParams fails
+  const fallbackId = window.location.pathname.split('/').pop()
+  const documentId = id || fallbackId || 'default'
+
+  // DEBUG: Log documentId sources
+  console.log('🆔 useParams id:', id)
+  console.log('🆔 fallbackId:', fallbackId)
+  console.log('🆔 final documentId:', documentId)
 
   // Load mind map title
   useEffect(() => {
-    if (id) {
-      loadMindMapTitle(id)
+    if (documentId && documentId !== 'default') {
+      loadMindMapTitle(documentId)
     }
-  }, [id])
+  }, [documentId])
 
   const loadMindMapTitle = async (mindMapId: string) => {
     try {
@@ -29,10 +35,10 @@ export default function MindMapEditor() {
   }
 
   const handleTitleSave = async (newTitle: string) => {
-    if (!id || !newTitle.trim()) return
+    if (!documentId || documentId === 'default' || !newTitle.trim()) return
 
     try {
-      await apiClient.updateMindMap(id, newTitle.trim())
+      await apiClient.updateMindMap(documentId, newTitle.trim())
       setMindMapTitle(newTitle.trim())
     } catch (error) {
       console.error('Error updating title:', error)
@@ -44,7 +50,7 @@ export default function MindMapEditor() {
     <div className="w-screen h-screen overflow-hidden">
       <MindMapCanvas
         mindMapTitle={mindMapTitle}
-        documentId={id || 'default'}
+        documentId={documentId}
         onTitleSave={handleTitleSave}
       />
     </div>

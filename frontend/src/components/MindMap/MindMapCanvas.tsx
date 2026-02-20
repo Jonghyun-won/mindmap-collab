@@ -9,7 +9,7 @@ import ReactFlow, {
   Panel,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { Map } from 'lucide-react'
+import { Map, Users, Wifi, WifiOff } from 'lucide-react'
 
 import CustomNode from './CustomNode'
 import EditorToolbar from './EditorToolbar'
@@ -46,6 +46,9 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
     setNodes,
     findAllDescendants,
     reparentNode,
+    // Collaboration status
+    isConnected,
+    onlineUsers,
   } = useMindMapStore(documentId)
 
   // Track dragging state
@@ -416,6 +419,29 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
             showInteractive={false}
             className="bg-white border border-gray-200 rounded-lg shadow-sm"
           />
+
+          {/* Connection status indicator */}
+          <Panel position="top-right" className="m-2">
+            <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-sm">
+              {isConnected ? (
+                <Wifi className="w-4 h-4 text-green-600" />
+              ) : (
+                <WifiOff className="w-4 h-4 text-gray-400" />
+              )}
+              <span className={`text-sm font-medium ${isConnected ? 'text-green-700' : 'text-gray-500'}`}>
+                {isConnected ? 'Connected' : 'Offline'}
+              </span>
+              {isConnected && onlineUsers > 0 && (
+                <>
+                  <div className="w-px h-4 bg-gray-300" />
+                  <Users className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-700">
+                    {onlineUsers} online
+                  </span>
+                </>
+              )}
+            </div>
+          </Panel>
 
           {/* MiniMap toggle button */}
           <Panel position="bottom-left" className="m-2">

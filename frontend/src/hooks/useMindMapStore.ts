@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Node,
   Edge,
@@ -9,6 +9,7 @@ import {
   NodeChange,
   EdgeChange,
 } from 'reactflow'
+import { useYjsCollaboration } from './useYjsCollaboration'
 
 export interface MindMapNode extends Node {
   data: {
@@ -101,6 +102,9 @@ export function useMindMapStore(documentId?: string) {
   const [history, setHistory] = useState<HistoryState[]>([])
   const [clipboard, setClipboard] = useState<MindMapNode | null>(null)
 
+  // Track if changes are from remote (Yjs) to prevent sync loops
+  const isRemoteChangeRef = useRef(false)
+
   // Load from localStorage on mount
   useEffect(() => {
     if (storageKey) {
@@ -119,6 +123,41 @@ export function useMindMapStore(documentId?: string) {
       }
     }
   }, [storageKey])
+
+  // Yjs real-time collaboration
+  const {
+    isConnected,
+    onlineUsers,
+    syncLocalNodes,
+    syncLocalEdges,
+  } = useYjsCollaboration({
+    documentId: documentId || 'default',
+    onNodesChange: (remoteNodes) => {
+      isRemoteChangeRef.current = true
+      setNodes(remoteNodes)
+      isRemoteChangeRef.current = false
+    },
+    onEdgesChange: (remoteEdges) => {
+      isRemoteChangeRef.current = true
+      setEdges(remoteEdges)
+      isRemoteChangeRef.current = false
+    },
+    initialNodes: nodes,
+    initialEdges: edges,
+  })
+
+  // Sync local changes to Yjs when nodes/edges change
+  useEffect(() => {
+    if (!isRemoteChangeRef.current && isConnected) {
+      syncLocalNodes(nodes)
+    }
+  }, [nodes, isConnected, syncLocalNodes])
+
+  useEffect(() => {
+    if (!isRemoteChangeRef.current && isConnected) {
+      syncLocalEdges(edges)
+    }
+  }, [edges, isConnected, syncLocalEdges])
 
   // Save to localStorage whenever nodes/edges change (debounced)
   useEffect(() => {
@@ -488,5 +527,8 @@ export function useMindMapStore(documentId?: string) {
     findAllDescendants,
     moveNodeWithDescendants,
     reparentNode,
+    // Collaboration status
+    isConnected,
+    onlineUsers,
   }
 }

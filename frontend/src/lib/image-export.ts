@@ -1,25 +1,34 @@
 import { toPng, toSvg } from 'html-to-image'
 import { jsPDF } from 'jspdf'
 
-function getFlowContainer(): HTMLElement | null {
-  return document.querySelector('.react-flow') as HTMLElement | null
+function getFlowElements() {
+  const viewport = document.querySelector('.react-flow__viewport') as HTMLElement | null
+  if (!viewport) throw new Error('ReactFlow viewport not found')
+  return viewport
 }
 
 const filterNodes = (node: HTMLElement): boolean => {
-  const classList = node?.classList
-  if (!classList) return true
-  return !classList.contains('react-flow__minimap') &&
-    !classList.contains('react-flow__controls') &&
-    !classList.contains('react-flow__panel')
+  if (!node?.classList) return true
+  return !node.classList.contains('react-flow__minimap') &&
+    !node.classList.contains('react-flow__controls') &&
+    !node.classList.contains('react-flow__panel') &&
+    !node.classList.contains('react-flow__attribution')
 }
 
 export async function exportToPNG(filename: string = 'mindmap.png'): Promise<void> {
-  const element = getFlowContainer()
-  if (!element) throw new Error('ReactFlow element not found')
+  const viewport = getFlowElements()
 
-  const dataUrl = await toPng(element, {
+  const flowContainer = document.querySelector('.react-flow') as HTMLElement
+  const flowRect = flowContainer.getBoundingClientRect()
+
+  const imageWidth = flowRect.width
+  const imageHeight = flowRect.height
+
+  const dataUrl = await toPng(viewport, {
     backgroundColor: '#ffffff',
     pixelRatio: 2,
+    width: imageWidth,
+    height: imageHeight,
     filter: filterNodes,
   })
 
@@ -30,11 +39,15 @@ export async function exportToPNG(filename: string = 'mindmap.png'): Promise<voi
 }
 
 export async function exportToSVG(filename: string = 'mindmap.svg'): Promise<void> {
-  const element = getFlowContainer()
-  if (!element) throw new Error('ReactFlow element not found')
+  const viewport = getFlowElements()
 
-  const dataUrl = await toSvg(element, {
+  const flowContainer = document.querySelector('.react-flow') as HTMLElement
+  const flowRect = flowContainer.getBoundingClientRect()
+
+  const dataUrl = await toSvg(viewport, {
     backgroundColor: '#ffffff',
+    width: flowRect.width,
+    height: flowRect.height,
     filter: filterNodes,
   })
 
@@ -45,12 +58,16 @@ export async function exportToSVG(filename: string = 'mindmap.svg'): Promise<voi
 }
 
 export async function exportToPDF(filename: string = 'mindmap.pdf', title?: string): Promise<void> {
-  const element = getFlowContainer()
-  if (!element) throw new Error('ReactFlow element not found')
+  const viewport = getFlowElements()
 
-  const dataUrl = await toPng(element, {
+  const flowContainer = document.querySelector('.react-flow') as HTMLElement
+  const flowRect = flowContainer.getBoundingClientRect()
+
+  const dataUrl = await toPng(viewport, {
     backgroundColor: '#ffffff',
     pixelRatio: 2,
+    width: flowRect.width,
+    height: flowRect.height,
     filter: filterNodes,
   })
 

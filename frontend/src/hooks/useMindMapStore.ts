@@ -104,6 +104,14 @@ function getSiblingPosition(currentNode: MindMapNode, existingNodes: MindMapNode
   }
 }
 
+interface ClipboardData {
+  type: 'mindmap-nodes'
+  version: 1
+  rootNode: any
+  descendants: any[]
+  edges: any[]
+}
+
 interface HistoryState {
   nodes: MindMapNode[]
   edges: Edge[]
@@ -551,74 +559,194 @@ export function useMindMapStore(documentId?: string) {
 
   const copyNode = useCallback((nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId)
-    if (node) {
-      setClipboard(node)
-    }
-  }, [nodes])
+    if (!node) return
 
-  const pasteNode = useCallback((targetNodeId?: string) => {
-    if (!clipboard) return
+    const descendantIds = findAllDescendants(nodeId, nodes)
+    const subtreeNodeIds = new Set([nodeId, ...descendantIds])
+    const subtreeNodes = nodes.filter(n => subtreeNodeIds.has(n.id))
+    const subtreeEdges = edges.filter(
+      e => subtreeNodeIds.has(e.source) && subtreeNodeIds.has(e.target)
+    )
+
+    const clipboardData: ClipboardData = {
+      type: 'mindmap-nodes',
+      version: 1,
+      rootNode: { ...node },
+      descendants: subtreeNodes.filter(n => n.id !== nodeId),
+      edges: subtreeEdges,
+    }
+
+    navigator.clipboard.writeText(JSON.stringify(clipboardData)).catch(err => {
+      console.warn('Failed to write to system clipboard:', err)
+    })
+
+    setClipboard(node)
+  }, [nodes, edges, findAllDescendants])
+
+  const pasteNode = useCallback(async (targetNodeId?: string) => {
+    let clipboardData: ClipboardData | null = null
+
+    // Try reading from system clipboard
+    try {
+      const text = await navigator.clipboard.readText()
+      const parsed = JSON.parse(text)
+      if (parsed?.type === 'mindmap-nodes' && parsed?.version === 1) {
+        clipboardData = parsed as ClipboardData
+      }
+    } catch {
+      // Fall through to in-memory fallback
+    }
+
+    if (!clipboardData && !clipboard) return
 
     saveHistory()
-    const newNodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-    if (targetNodeId) {
-      // Paste as child of selected node
-      setNodes((nds) => {
-        const targetNode = nds.find(n => n.id === targetNodeId)
-        if (!targetNode) return nds
+    if (clipboardData) {
+      // Paste subtree with ID remapping
+      const allSourceNodes = [clipboardData.rootNode, ...clipboardData.descendants]
 
-        const newLevel = (targetNode.data.level || 0) + 1
+      // Build old->new ID map
+      const idMap = new Map<string, string>()
+      allSourceNodes.forEach((n: any) => {
+        idMap.set(n.id, `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`)
+      })
 
-        if (newLevel >= 20) {
-          alert('Maximum depth of 20 levels reached!')
-          return nds
+      const rootNewId = idMap.get(clipboardData.rootNode.id)!
+
+      // Calculate root position
+      let rootPosition = { x: 100, y: 100 }
+      let targetLevel = 0
+      if (targetNodeId) {
+        const targetNode = nodes.find(n => n.id === targetNodeId)
+        if (targetNode) {
+          targetLevel = (targetNode.data?.level ?? 0)
+          rootPosition = {
+            x: targetNode.position.x + 250,
+            y: targetNode.position.y + 50,
+          }
         }
+      }
 
-        const position = getChildPosition(targetNode, nds, newLevel)
+      // Calculate level delta
+      const originalRootLevel = clipboardData.rootNode.data?.level ?? 0
+      const newRootLevel = targetNodeId ? targetLevel + 1 : originalRootLevel
+      const levelDelta = newRootLevel - originalRootLevel
 
-        const newNode: MindMapNode = {
-          id: newNodeId,
+      // Position offset from original root
+      const originalRootPos = clipboardData.rootNode.position
+
+      // Remap nodes
+      const newNodes: MindMapNode[] = allSourceNodes.map((n: any) => {
+        const isRoot = n.id === clipboardData!.rootNode.id
+        const newLevel = (n.data?.level ?? 0) + levelDelta
+
+        return {
+          ...n,
+          id: idMap.get(n.id)!,
           type: 'custom',
           data: {
-            ...clipboard.data,
+            ...n.data,
+            parentId: isRoot
+              ? (targetNodeId || undefined)
+              : (idMap.get(n.data?.parentId) || undefined),
             level: newLevel,
-            parentId: targetNodeId,
+            color: getColorForLevel(newLevel),
           },
-          position,
+          position: isRoot
+            ? rootPosition
+            : {
+                x: rootPosition.x + (n.position.x - originalRootPos.x),
+                y: rootPosition.y + (n.position.y - originalRootPos.y),
+              },
+          selected: false,
+          dragging: false,
         }
-
-        return [...nds, newNode]
       })
 
-      // Connect to parent
-      setTimeout(() => {
-        setEdges((eds) => {
-          return [...eds, {
-            id: `e-${targetNodeId}-${newNodeId}`,
-            source: targetNodeId,
-            target: newNodeId,
-            type: 'smoothstep',
-            animated: false,
-          }]
+      // Remap edges
+      const newEdges: Edge[] = clipboardData.edges
+        .filter((e: any) => idMap.has(e.source) && idMap.has(e.target))
+        .map((e: any) => ({
+          ...e,
+          id: `e-${idMap.get(e.source)}-${idMap.get(e.target)}`,
+          source: idMap.get(e.source)!,
+          target: idMap.get(e.target)!,
+        }))
+
+      // Add edge from target to pasted root
+      if (targetNodeId) {
+        newEdges.push({
+          id: `e-${targetNodeId}-${rootNewId}`,
+          source: targetNodeId,
+          target: rootNewId,
+          type: 'smoothstep',
         })
-      }, 50)
-    } else {
-      // Paste at same level
-      setNodes((nds) => {
-        const newNode: MindMapNode = {
-          id: newNodeId,
-          type: 'custom',
-          data: { ...clipboard.data },
-          position: {
-            x: clipboard.position.x + 50,
-            y: clipboard.position.y + 50,
-          },
-        }
-        return [...nds, newNode]
-      })
+      }
+
+      setNodes(nds => [...nds, ...newNodes])
+      setEdges(eds => [...eds, ...newEdges])
+    } else if (clipboard) {
+      // Fallback: single-node paste from in-memory clipboard
+      const newNodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      if (targetNodeId) {
+        // Paste as child of selected node
+        setNodes((nds) => {
+          const targetNode = nds.find(n => n.id === targetNodeId)
+          if (!targetNode) return nds
+
+          const newLevel = (targetNode.data.level || 0) + 1
+
+          if (newLevel >= 20) {
+            alert('Maximum depth of 20 levels reached!')
+            return nds
+          }
+
+          const position = getChildPosition(targetNode, nds, newLevel)
+
+          const newNode: MindMapNode = {
+            id: newNodeId,
+            type: 'custom',
+            data: {
+              ...clipboard.data,
+              level: newLevel,
+              parentId: targetNodeId,
+            },
+            position,
+          }
+
+          return [...nds, newNode]
+        })
+
+        // Connect to parent
+        setTimeout(() => {
+          setEdges((eds) => {
+            return [...eds, {
+              id: `e-${targetNodeId}-${newNodeId}`,
+              source: targetNodeId,
+              target: newNodeId,
+              type: 'smoothstep',
+              animated: false,
+            }]
+          })
+        }, 50)
+      } else {
+        // Paste at same level
+        setNodes((nds) => {
+          const newNode: MindMapNode = {
+            id: newNodeId,
+            type: 'custom',
+            data: { ...clipboard.data },
+            position: {
+              x: clipboard.position.x + 50,
+              y: clipboard.position.y + 50,
+            },
+          }
+          return [...nds, newNode]
+        })
+      }
     }
-  }, [clipboard, saveHistory])
+  }, [clipboard, nodes, edges, saveHistory, setNodes, setEdges])
 
   const undo = useCallback(() => {
     if (history.length === 0) return

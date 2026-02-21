@@ -231,9 +231,11 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
       if (isCtrl && event.key === 'v') {
         event.preventDefault()
         navigator.clipboard.read().then(async (items) => {
+          let hasImage = false
           for (const item of items) {
             const imageType = item.types.find(t => t.startsWith('image/'))
             if (imageType && selectedNode) {
+              hasImage = true
               const blob = await item.getType(imageType)
               const reader = new FileReader()
               reader.onload = () => {
@@ -267,15 +269,13 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
               return
             }
           }
-          // If no image, do normal paste
-          if (selectedNode) {
-            pasteNode(selectedNode)
+          // If no image, do normal paste (async - reads from system clipboard internally)
+          if (!hasImage) {
+            await pasteNode(selectedNode)
           }
-        }).catch(() => {
-          // Fallback to normal paste if clipboard API fails
-          if (selectedNode) {
-            pasteNode(selectedNode)
-          }
+        }).catch(async () => {
+          // Fallback to normal paste if clipboard.read() fails
+          await pasteNode(selectedNode)
         })
         return
       }

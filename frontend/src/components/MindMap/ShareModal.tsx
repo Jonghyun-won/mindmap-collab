@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Trash2, UserPlus, Mail, Shield } from 'lucide-react'
+import { Trash2, UserPlus, Mail, Shield, Link, Copy, Loader2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -42,10 +42,18 @@ export default function ShareModal({
   const [invitePermission, setInvitePermission] = useState<'view' | 'edit' | 'admin'>('edit')
   const [isInviting, setIsInviting] = useState(false)
 
-  // Load collaborators when modal opens
+  // Invite link state
+  const [inviteLinks, setInviteLinks] = useState<any[]>([])
+  const [linkPermission, setLinkPermission] = useState<'view' | 'edit'>('view')
+  const [isCreatingLink, setIsCreatingLink] = useState(false)
+  const [isLoadingLinks, setIsLoadingLinks] = useState(false)
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null)
+
+  // Load collaborators and invite links when modal opens
   useEffect(() => {
     if (isOpen) {
       loadCollaborators()
+      loadInviteLinks()
     }
   }, [isOpen, mindMapId])
 
@@ -61,6 +69,53 @@ export default function ShareModal({
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const loadInviteLinks = async () => {
+    setIsLoadingLinks(true)
+    try {
+      const data = await apiClient.getInviteLinks(mindMapId)
+      setInviteLinks(data.invites)
+    } catch (err) {
+      console.error('Error loading invite links:', err)
+    } finally {
+      setIsLoadingLinks(false)
+    }
+  }
+
+  const handleCreateInviteLink = async () => {
+    setIsCreatingLink(true)
+    try {
+      const result = await apiClient.createInviteLink(mindMapId, linkPermission, 72)
+      setInviteLinks([...inviteLinks, result.invite])
+      await copyToClipboard(result.url, result.invite.id)
+      showToast('초대 링크가 생성되었습니다', 'success')
+    } catch (err: any) {
+      const errorMessage = err?.message || '링크 생성에 실패했습니다'
+      showToast(errorMessage, 'error')
+    } finally {
+      setIsCreatingLink(false)
+    }
+  }
+
+  const handleRevokeLink = async (inviteId: string) => {
+    try {
+      await apiClient.revokeInviteLink(mindMapId, inviteId)
+      setInviteLinks(inviteLinks.filter((link) => link.id !== inviteId))
+      showToast('초대 링크가 삭제되었습니다', 'success')
+    } catch (err: any) {
+      showToast(err?.message || '링크 삭제에 실패했습니다', 'error')
+    }
+  }
+
+  const copyToClipboard = async (text: string, linkId: string) => {
+    await navigator.clipboard.writeText(text)
+    setCopiedLinkId(linkId)
+    setTimeout(() => setCopiedLinkId(null), 2000)
+  }
+
+  const getInviteUrl = (token: string) => {
+    return `${window.location.origin}/invite/${token}`
   }
 
   const handleInvite = async (e: React.FormEvent) => {
@@ -241,6 +296,94 @@ export default function ShareModal({
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* Invite Links Section */}
+          <div className="border-t pt-4 space-y-3">
+            <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              <Link className="w-4 h-4" />
+              초대 링크
+            </h3>
+
+            <div className="flex gap-2">
+              <Select
+                value={linkPermission}
+                onValueChange={(value) => setLinkPermission(value as 'view' | 'edit')}
+                disabled={isCreatingLink}
+              >
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="view">보기</SelectItem>
+                  <SelectItem value="edit">편집</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={handleCreateInviteLink}
+                disabled={isCreatingLink}
+                variant="outline"
+                className="flex-1"
+              >
+                {isCreatingLink ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Link className="w-4 h-4" />
+                )}
+                링크 생성
+              </Button>
+            </div>
+
+            {isLoadingLinks ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+              </div>
+            ) : inviteLinks.length > 0 ? (
+              <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                {inviteLinks.map((link) => (
+                  <div
+                    key={link.id}
+                    className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg text-sm"
+                  >
+                    <Link className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <span className="flex-1 truncate text-gray-600 text-xs font-mono">
+                      {getInviteUrl(link.token)}
+                    </span>
+                    <Badge variant={link.permission === 'edit' ? 'default' : 'secondary'} className="text-[10px] flex-shrink-0">
+                      {link.permission === 'edit' ? '편집' : '보기'}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => copyToClipboard(getInviteUrl(link.token), link.id)}
+                      className="text-gray-500 hover:text-blue-600 flex-shrink-0"
+                      title="링크 복사"
+                    >
+                      {copiedLinkId === link.id ? (
+                        <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleRevokeLink(link.id)}
+                      className="text-gray-500 hover:text-red-600 flex-shrink-0"
+                      title="링크 삭제"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500 text-center py-2">
+                생성된 초대 링크가 없습니다
+              </p>
             )}
           </div>
 

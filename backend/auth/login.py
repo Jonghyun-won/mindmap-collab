@@ -16,7 +16,7 @@ def login(request: LoginRequest) -> LoginResponse:
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT id, email, name, password_hash, created_at FROM public.users WHERE email = %s",
+        "SELECT id, email, name, team, email_verified, password_hash, created_at FROM public.users WHERE email = %s",
         (request.email,)
     )
     row = cursor.fetchone()
@@ -26,10 +26,13 @@ def login(request: LoginRequest) -> LoginResponse:
     if not row:
         raise AuthenticationError("등록되지 않은 이메일입니다")
 
-    user_id, email, name, password_hash, created_at = row
+    user_id, email, name, team, email_verified, password_hash, created_at = row
 
     if not verify_password(request.password, password_hash):
         raise AuthenticationError("비밀번호가 틀렸습니다")
+
+    if not email_verified:
+        raise ValueError("EMAIL_NOT_VERIFIED")
 
     token = create_jwt_token(str(user_id))
 
@@ -37,6 +40,8 @@ def login(request: LoginRequest) -> LoginResponse:
         id=user_id,
         email=email,
         name=name,
+        team=team,
+        email_verified=email_verified,
         created_at=created_at
     )
 
@@ -58,6 +63,8 @@ def main(email: str, password: str) -> dict:
             "id": str(response.user.id),
             "email": response.user.email,
             "name": response.user.name,
+            "team": response.user.team,
+            "email_verified": response.user.email_verified,
             "created_at": response.user.created_at.isoformat()
         }
     }

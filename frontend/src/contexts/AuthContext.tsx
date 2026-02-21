@@ -1,13 +1,15 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { apiClient } from '@/lib/api-client'
-import type { User } from '@/types/auth'
+import type { User, RegisterResponse, ResendConfirmationResponse } from '@/types/auth'
 
 interface AuthContextValue {
   user: User | null
   loading: boolean
   error: string | null
   login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string, name?: string) => Promise<void>
+  register: (email: string, password: string, name?: string, team?: string) => Promise<RegisterResponse>
+  confirmEmail: (email: string, code: string) => Promise<void>
+  resendConfirmation: (email: string) => Promise<ResendConfirmationResponse>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
 }
@@ -52,18 +54,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
-  const register = async (email: string, password: string, name?: string) => {
+  const register = async (email: string, password: string, name?: string, team?: string): Promise<RegisterResponse> => {
     setLoading(true)
     setError(null)
     try {
-      const response = await apiClient.register(email, password, name)
-      setUser(response.user)
+      const response = await apiClient.register(email, password, name, team)
+      return response
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed'
       setError(message)
       throw err
     } finally {
       setLoading(false)
+    }
+  }
+
+  const confirmEmail = async (email: string, code: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await apiClient.confirmEmail(email, code)
+      setUser(response.user)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Email confirmation failed'
+      setError(message)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const resendConfirmation = async (email: string): Promise<ResendConfirmationResponse> => {
+    setError(null)
+    try {
+      return await apiClient.resendConfirmation(email)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to resend confirmation'
+      setError(message)
+      throw err
     }
   }
 
@@ -92,6 +120,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     error,
     login,
     register,
+    confirmEmail,
+    resendConfirmation,
     logout,
     checkAuth,
   }

@@ -3,6 +3,16 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import MindMapEditor from './pages/MindMapEditor';
+import AcceptInvite from './pages/AcceptInvite';
+
+function LoginRedirect() {
+  const pendingInvite = localStorage.getItem('pending_invite');
+  if (pendingInvite) {
+    localStorage.removeItem('pending_invite');
+    return <Navigate to={`/invite/${pendingInvite}`} />;
+  }
+  return <Navigate to="/" />;
+}
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -20,7 +30,7 @@ function AppContent() {
       <Routes>
         <Route
           path="/login"
-          element={user ? <Navigate to="/" /> : <Login />}
+          element={user ? <LoginRedirect /> : <Login />}
         />
         <Route
           path="/"
@@ -33,6 +43,10 @@ function AppContent() {
         <Route
           path="/editor/:id"
           element={user ? <MindMapEditor /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/invite/:token"
+          element={<AcceptInvite />}
         />
       </Routes>
     </BrowserRouter>

@@ -2,6 +2,10 @@ import type {
   LoginRequest,
   RegisterRequest,
   LoginResponse,
+  RegisterResponse,
+  ConfirmEmailRequest,
+  ResendConfirmationRequest,
+  ResendConfirmationResponse,
   User,
 } from '@/types/auth'
 
@@ -66,7 +70,7 @@ class ApiClient {
     const data = await response.json()
 
     if (!response.ok) {
-      const error = new Error(data.message || 'API request failed')
+      const error = new Error(data.detail || data.message || 'API request failed')
       ;(error as any).status = response.status
       ;(error as any).details = data.details
       throw error
@@ -80,16 +84,42 @@ class ApiClient {
   async register(
     email: string,
     password: string,
-    name?: string
+    name?: string,
+    team?: string
+  ): Promise<RegisterResponse> {
+    const requestData: RegisterRequest = { email, password, name, team }
+    return this.request<RegisterResponse>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(requestData),
+    })
+  }
+
+  async confirmEmail(
+    email: string,
+    confirmationCode: string
   ): Promise<LoginResponse> {
-    const requestData: RegisterRequest = { email, password, name }
-    const response = await this.request<LoginResponse>('/auth/register', {
+    const requestData: ConfirmEmailRequest = {
+      email,
+      confirmation_code: confirmationCode,
+    }
+    const response = await this.request<LoginResponse>('/auth/confirm-email', {
       method: 'POST',
       body: JSON.stringify(requestData),
     })
 
     this.setToken(response.token)
     return response
+  }
+
+  async resendConfirmation(email: string): Promise<ResendConfirmationResponse> {
+    const requestData: ResendConfirmationRequest = { email }
+    return this.request<ResendConfirmationResponse>(
+      '/auth/resend-confirmation',
+      {
+        method: 'POST',
+        body: JSON.stringify(requestData),
+      }
+    )
   }
 
   async login(email: string, password: string): Promise<LoginResponse> {
@@ -210,6 +240,91 @@ class ApiClient {
     return this.request<void>(`/mindmaps/${mindMapId}/collaborators/${userId}`, {
       method: 'DELETE',
     })
+  }
+
+  // ========== Comments Methods ==========
+
+  async getNodeComments(mindmapId: string, nodeId: string) {
+    return this.request<{ comments: any[]; total: number }>(
+      `/mindmaps/${mindmapId}/nodes/${nodeId}/comments`
+    )
+  }
+
+  async createNodeComment(mindmapId: string, nodeId: string, content: string) {
+    return this.request<any>(`/mindmaps/${mindmapId}/nodes/${nodeId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    })
+  }
+
+  async deleteNodeComment(mindmapId: string, nodeId: string, commentId: string) {
+    return this.request<any>(
+      `/mindmaps/${mindmapId}/nodes/${nodeId}/comments/${commentId}`,
+      {
+        method: 'DELETE',
+      }
+    )
+  }
+
+  // ========== Change History Methods ==========
+
+  async getChangeHistory(mindmapId: string, page: number = 1, limit: number = 50) {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    })
+    return this.request<{ changes: any[]; total: number; page: number; limit: number }>(
+      `/mindmaps/${mindmapId}/history?${params}`
+    )
+  }
+
+  async recordChange(
+    mindmapId: string,
+    action: string,
+    nodeId?: string,
+    details?: Record<string, any>
+  ) {
+    return this.request<any>(`/mindmaps/${mindmapId}/history`, {
+      method: 'POST',
+      body: JSON.stringify({ action, node_id: nodeId, details }),
+    })
+  }
+
+  // ========== Invite Links Methods ==========
+
+  async createInviteLink(
+    mindmapId: string,
+    permission: string = 'view',
+    expiresInHours?: number,
+    maxUses?: number
+  ) {
+    return this.request<{ invite: any; url: string }>(`/mindmaps/${mindmapId}/invites`, {
+      method: 'POST',
+      body: JSON.stringify({
+        permission,
+        expires_in_hours: expiresInHours,
+        max_uses: maxUses,
+      }),
+    })
+  }
+
+  async getInviteLinks(mindmapId: string) {
+    return this.request<{ invites: any[] }>(`/mindmaps/${mindmapId}/invites`)
+  }
+
+  async revokeInviteLink(mindmapId: string, inviteId: string) {
+    return this.request<any>(`/mindmaps/${mindmapId}/invites/${inviteId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async acceptInviteLink(inviteToken: string) {
+    return this.request<{ mindmap_id: string; permission: string }>(
+      `/invites/${inviteToken}/accept`,
+      {
+        method: 'POST',
+      }
+    )
   }
 }
 

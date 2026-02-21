@@ -34,6 +34,7 @@ class MindMapDetail(MindMap):
     owner: User
     collaborators_count: int = Field(..., ge=0)
     yjs_state: Optional[str] = None  # Base64-encoded Yjs document state
+    current_user_permission: Optional[str] = None
 
 
 # Collaborator model

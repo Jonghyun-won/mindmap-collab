@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { WebsocketProvider } from 'y-websocket'
+import { HocuspocusProvider } from '@hocuspocus/provider'
 
 export interface UserPresence {
   clientId: number
@@ -30,11 +30,11 @@ function getUserColor(clientId: number): string {
   return USER_COLORS[clientId % USER_COLORS.length]
 }
 
-export function usePresence(provider: WebsocketProvider | null, userName?: string) {
+export function usePresence(provider: HocuspocusProvider | null, userName?: string) {
   const [collaborators, setCollaborators] = useState<Map<number, UserPresence>>(new Map())
 
   useEffect(() => {
-    if (!provider) return
+    if (!provider?.awareness) return
 
     const awareness = provider.awareness
     const clientId = awareness.clientID
@@ -74,13 +74,13 @@ export function usePresence(provider: WebsocketProvider | null, userName?: strin
 
   // 커서 위치 업데이트
   const updateCursor = useCallback((x: number, y: number) => {
-    if (!provider) return
+    if (!provider?.awareness) return
     provider.awareness.setLocalStateField('cursor', { x, y })
   }, [provider])
 
   // 선택된 노드 업데이트
   const updateSelectedNode = useCallback((nodeId?: string) => {
-    if (!provider) return
+    if (!provider?.awareness) return
     provider.awareness.setLocalStateField('selectedNode', nodeId)
   }, [provider])
 

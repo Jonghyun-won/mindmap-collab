@@ -7,15 +7,26 @@ import ReactFlow, {
   SelectionMode,
   BackgroundVariant,
   Panel,
+  Node,
+  Edge,
+  ReactFlowProvider,
+  useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { Map, Users, Wifi, WifiOff } from 'lucide-react'
+import { Map, Users, Wifi, WifiOff, History } from 'lucide-react'
 
 import CustomNode from './CustomNode'
 import EditorToolbar from './EditorToolbar'
 import ShareModal from './ShareModal'
+import CollaboratorCursors from './CollaboratorCursors'
+import { ChangeHistory } from './ChangeHistory'
+import { NodeDetailPanel } from '@/components/ui/NodeDetailPanel'
+import { EdgeDetailPanel } from '@/components/ui/EdgeDetailPanel'
 import { useMindMapStore } from '@/hooks/useMindMapStore'
 import { useSaveMindMap } from '@/hooks/useSaveMindMap'
+import { usePresence } from '@/hooks/usePresence'
+import { useAuth } from '@/contexts/AuthContext'
+import type { MindMapNode as MindMapNodeType } from '@/types/mindmap'
 
 const nodeTypes: NodeTypes = {
   custom: CustomNode,
@@ -27,7 +38,16 @@ interface MindMapCanvasProps {
   onTitleSave?: (newTitle: string) => void
 }
 
-export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }: MindMapCanvasProps) {
+// Wrapper component that provides ReactFlowProvider context
+export default function MindMapCanvas(props: MindMapCanvasProps) {
+  return (
+    <ReactFlowProvider>
+      <MindMapCanvasInner {...props} />
+    </ReactFlowProvider>
+  )
+}
+
+function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCanvasProps) {
   const {
     nodes,
     edges,
@@ -44,11 +64,15 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
     pasteNode,
     undo,
     setNodes,
+    setEdges,
     findAllDescendants,
     reparentNode,
+    toggleEdgeArrow,
+    updateEdgeStyle,
     // Collaboration status
     isConnected,
     onlineUsers,
+    provider,
   } = useMindMapStore(documentId)
 
   // Track dragging state
@@ -61,6 +85,15 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
 
   // Save functionality (simplified - no Yjs for now)
   const { saveMindMap, isSaving, lastSaved } = useSaveMindMap()
+
+  // Auth context for user info
+  const { user } = useAuth()
+
+  // ReactFlow instance for coordinate conversion
+  const { screenToFlowPosition } = useReactFlow()
+
+  // Real-time presence (cursors)
+  const { collaborators, updateCursor } = usePresence(provider, user?.name || user?.email || 'Anonymous')
 
   // Manual save handler
   const handleSave = useCallback(async () => {
@@ -82,8 +115,11 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
 
   const [selectedNode, setSelectedNode] = useState<string | undefined>()
   const [selectedNodes, setSelectedNodes] = useState<string[]>([])
+  const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [showMiniMap, setShowMiniMap] = useState(true)
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+  const [selectedNodeForDetail, setSelectedNodeForDetail] = useState<string | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
 
   // Handle node selection
   const onSelectionChange = useCallback(({ nodes }: any) => {
@@ -102,6 +138,38 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
     window.addEventListener('nodeUpdate', handleNodeUpdate)
     return () => window.removeEventListener('nodeUpdate', handleNodeUpdate)
   }, [updateNodeLabel])
+
+  // Toggle collapse/expand for a node's children
+  const handleToggleCollapse = useCallback((nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId)
+    if (!node) return
+
+    const newCollapsed = !node.data.collapsed
+    const childrenIds = findAllDescendants(nodeId, nodes)
+
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id === nodeId) {
+          return { ...n, data: { ...n.data, collapsed: newCollapsed } }
+        }
+        if (childrenIds.includes(n.id)) {
+          return { ...n, hidden: newCollapsed }
+        }
+        return n
+      })
+    )
+
+    // Hide/show edges connected to hidden children
+    const hiddenSet = new Set(childrenIds)
+    setEdges((eds) =>
+      eds.map((edge) => {
+        if (hiddenSet.has(edge.target)) {
+          return { ...edge, hidden: newCollapsed }
+        }
+        return edge
+      })
+    )
+  }, [nodes, findAllDescendants, setNodes, setEdges])
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -141,10 +209,56 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
         return
       }
 
-      // Ctrl+V: Paste
+      // Ctrl+V: Paste (with image detection)
       if (isCtrl && event.key === 'v') {
         event.preventDefault()
-        pasteNode(selectedNode)
+        navigator.clipboard.read().then(async (items) => {
+          for (const item of items) {
+            const imageType = item.types.find(t => t.startsWith('image/'))
+            if (imageType && selectedNode) {
+              const blob = await item.getType(imageType)
+              const reader = new FileReader()
+              reader.onload = () => {
+                const dataUrl = reader.result as string
+                const img = new Image()
+                img.onload = () => {
+                  const maxWidth = 300
+                  const scale = img.width > maxWidth ? maxWidth / img.width : 1
+                  setNodes((nds: any) =>
+                    nds.map((node: any) =>
+                      node.id === selectedNode
+                        ? {
+                            ...node,
+                            data: {
+                              ...node.data,
+                              media: {
+                                type: 'image',
+                                url: dataUrl,
+                                width: img.width * scale,
+                                height: img.height * scale,
+                              },
+                            },
+                          }
+                        : node
+                    )
+                  )
+                }
+                img.src = dataUrl
+              }
+              reader.readAsDataURL(blob)
+              return
+            }
+          }
+          // If no image, do normal paste
+          if (selectedNode) {
+            pasteNode(selectedNode)
+          }
+        }).catch(() => {
+          // Fallback to normal paste if clipboard API fails
+          if (selectedNode) {
+            pasteNode(selectedNode)
+          }
+        })
         return
       }
 
@@ -153,6 +267,26 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
         event.preventDefault()
         deleteNode(selectedNode)
         setSelectedNode(undefined)
+        return
+      }
+
+      // Ctrl + -: Collapse selected node (하위 노드 숨기기)
+      if (isCtrl && (event.key === '-' || event.key === '_') && selectedNode) {
+        event.preventDefault()
+        const node = nodes.find(n => n.id === selectedNode)
+        if (node && !node.data.collapsed) {
+          handleToggleCollapse(selectedNode)
+        }
+        return
+      }
+
+      // Ctrl + +: Expand selected node (하위 노드 펼치기)
+      if (isCtrl && (event.key === '=' || event.key === '+') && selectedNode) {
+        event.preventDefault()
+        const node = nodes.find(n => n.id === selectedNode)
+        if (node && node.data.collapsed) {
+          handleToggleCollapse(selectedNode)
+        }
         return
       }
 
@@ -247,7 +381,7 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
 
     window.addEventListener('keydown', handleKeyDown, { capture: true })
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true })
-  }, [selectedNode, deleteNode, addChildNode, addSiblingNode, copyNode, pasteNode, undo, handleSave])
+  }, [selectedNode, deleteNode, addChildNode, addSiblingNode, copyNode, pasteNode, undo, handleSave, handleToggleCollapse, nodes, setNodes])
 
   const handleColorChange = useCallback(
     (color: string) => {
@@ -264,6 +398,42 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
       setSelectedNode(undefined)
     }
   }, [selectedNode, deleteNode])
+
+  // Handle node click to open detail panel
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    setSelectedNodeForDetail(node.id)
+    setSelectedEdge(null) // deselect edge when node is selected
+  }, [])
+
+  // Handle edge click to open edge detail panel
+  const onEdgeClick = useCallback((_event: React.MouseEvent, edge: Edge) => {
+    setSelectedEdge(edge)
+    setSelectedNode(undefined) // deselect node when edge is selected
+    setSelectedNodeForDetail(null)
+  }, [])
+
+  // Handle pane click to clear selections
+  const onPaneClick = useCallback(() => {
+    setSelectedEdge(null)
+    setSelectedNodeForDetail(null)
+  }, [])
+
+  // Update node properties from NodeDetailPanel
+  const handleNodeUpdate = useCallback((nodeId: string, updates: Partial<MindMapNodeType>) => {
+    setNodes((nds: any) =>
+      nds.map((node: any) =>
+        node.id === nodeId
+          ? { ...node, data: { ...node.data, ...updates } }
+          : node
+      )
+    )
+  }, [setNodes])
+
+  // Handle mouse move for real-time cursor sharing
+  const handleMouseMove = useCallback((event: React.MouseEvent) => {
+    const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
+    updateCursor(position.x, position.y)
+  }, [screenToFlowPosition, updateCursor])
 
   // Handle node drag
   const handleNodeDrag = useCallback((_event: any, node: any) => {
@@ -365,7 +535,9 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
   }, [nodes, selectedNodes, findAllDescendants, reparentNode])
 
   return (
-    <div className="w-full h-full relative bg-white">
+    <div className="w-full h-full relative bg-white flex">
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col">
       {/* Toolbar - XMind style top toolbar (60px height) */}
       <div className="h-[60px] relative">
         <EditorToolbar
@@ -383,7 +555,7 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
       </div>
 
       {/* ReactFlow Canvas - fills remaining screen */}
-      <div style={{ width: '100%', height: 'calc(100% - 60px)' }}>
+      <div style={{ width: '100%', height: 'calc(100% - 60px)' }} onMouseMove={handleMouseMove}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -391,6 +563,9 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onSelectionChange={onSelectionChange}
+          onNodeClick={onNodeClick}
+          onEdgeClick={onEdgeClick}
+          onPaneClick={onPaneClick}
           onNodeDrag={handleNodeDrag}
           onNodeDragStop={handleNodeDragStop}
           nodeTypes={nodeTypes}
@@ -399,6 +574,7 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
           fitViewOptions={{ padding: 0.2, maxZoom: 1, minZoom: 0.5 }}
           minZoom={0.1}
           maxZoom={2}
+          edgesUpdatable={true}
           selectionMode={SelectionMode.Partial}
           className="bg-white"
           snapToGrid={false}
@@ -420,6 +596,9 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
             className="bg-white border border-gray-200 rounded-lg shadow-sm"
           />
 
+          {/* Collaborator cursors */}
+          <CollaboratorCursors collaborators={collaborators} />
+
           {/* Connection status indicator */}
           <Panel position="top-right" className="m-2">
             <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-sm">
@@ -440,6 +619,14 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
                   </span>
                 </>
               )}
+              <div className="w-px h-4 bg-gray-300" />
+              <button
+                onClick={() => setShowHistory(!showHistory)}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                title="변경 히스토리"
+              >
+                <History className={`w-4 h-4 ${showHistory ? 'text-blue-600' : 'text-gray-500'}`} />
+              </button>
             </div>
           </Panel>
 
@@ -475,6 +662,51 @@ export default function MindMapCanvas({ mindMapTitle, documentId, onTitleSave }:
         mindMapId={documentId}
         mindMapTitle={mindMapTitle}
       />
+      </div>
+
+      {/* EdgeDetailPanel - shows when an edge is selected */}
+      {selectedEdge && (
+        <EdgeDetailPanel
+          edge={selectedEdge}
+          onToggleArrow={toggleEdgeArrow}
+          onUpdateStyle={updateEdgeStyle}
+          onClose={() => setSelectedEdge(null)}
+        />
+      )}
+
+      {/* ChangeHistory panel */}
+      {documentId && (
+        <ChangeHistory
+          mindmapId={documentId}
+          isOpen={showHistory}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
+
+      {/* NodeDetailPanel - Right sidebar */}
+      {selectedNodeForDetail && (() => {
+        const selectedReactFlowNode = nodes.find(n => n.id === selectedNodeForDetail)
+        if (!selectedReactFlowNode) return null
+
+        const mindmapNode: MindMapNodeType = {
+          id: selectedReactFlowNode.id,
+          label: selectedReactFlowNode.data.label,
+          position: selectedReactFlowNode.position,
+          level: selectedReactFlowNode.data.level || 0,
+          parentId: selectedReactFlowNode.data.parentId,
+          color: selectedReactFlowNode.data.color,
+          borderColor: (selectedReactFlowNode.data as any).borderColor,
+        }
+
+        return (
+          <NodeDetailPanel
+            node={mindmapNode}
+            mindmapId={documentId}
+            onClose={() => setSelectedNodeForDetail(null)}
+            onUpdate={handleNodeUpdate}
+          />
+        )
+      })()}
     </div>
   )
 }

@@ -1,21 +1,22 @@
 import argparse
 import json
+import random
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from conn import get_db_connection
-from utils.auth_helper import hash_password, create_jwt_token
+from utils.auth_helper import hash_password
 from utils.validation import validate_email, validate_password_strength
-from auth.model import RegisterRequest, LoginResponse, User
+from auth.model import RegisterRequest, RegisterResponse, User
 
 
-def register(request: RegisterRequest) -> LoginResponse:
-    """Register new user and return JWT token.
+def register(request: RegisterRequest) -> RegisterResponse:
+    """Register new user and return confirmation code.
 
     Args:
-        request: RegisterRequest with email, password, and optional name
+        request: RegisterRequest with email, password, optional name and team
 
     Returns:
-        LoginResponse with token and user info
+        RegisterResponse with message, user info, and confirmation code
 
     Raises:
         ValueError: If validation fails or email already exists
@@ -47,86 +48,76 @@ def register(request: RegisterRequest) -> LoginResponse:
     # Hash password
     hashed_password = hash_password(request.password)
 
-    # Insert new user
+    # Insert new user with email_verified = FALSE
     cursor.execute(
         """
-        INSERT INTO public.users (email, password_hash, name)
-        VALUES (%s, %s, %s)
-        RETURNING id, email, name, created_at
+        INSERT INTO public.users (email, password_hash, name, team, email_verified)
+        VALUES (%s, %s, %s, %s, FALSE)
+        RETURNING id, email, name, team, email_verified, created_at
         """,
-        (request.email, hashed_password, request.name)
+        (request.email, hashed_password, request.name, request.team)
     )
 
     user_row = cursor.fetchone()
-    conn.commit()
 
     user_id = str(user_row[0])
     user_email = user_row[1]
     user_name = user_row[2]
-    user_created_at = user_row[3]
+    user_team = user_row[3]
+    user_email_verified = user_row[4]
+    user_created_at = user_row[5]
 
+    # Generate 6-digit confirmation code
+    code = str(random.randint(100000, 999999))
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+
+    # Save confirmation code
+    cursor.execute(
+        """
+        INSERT INTO public.email_confirmations (user_id, confirmation_code, expires_at)
+        VALUES (%s, %s, %s)
+        """,
+        (user_id, code, expires_at)
+    )
+
+    conn.commit()
     cursor.close()
     conn.close()
-
-    # Create JWT token
-    token = create_jwt_token(user_id)
 
     # Build User object
     user = User(
         id=user_id,
         email=user_email,
         name=user_name,
+        team=user_team,
+        email_verified=user_email_verified,
         created_at=user_created_at
     )
 
-    # Return LoginResponse
-    return LoginResponse(
-        token=token,
-        token_type="bearer",
-        user=user
+    # Return RegisterResponse (no JWT token)
+    return RegisterResponse(
+        message="Registration successful. Please verify your email.",
+        user=user,
+        confirmation_code=code
     )
 
 
-def main(email: str, password: str, name: str = None) -> dict:
-    """Main function for testing registration.
+def main(email: str, password: str, name: str = None, team: str = None) -> dict:
+    request = RegisterRequest(email=email, password=password, name=name, team=team)
+    response = register(request)
 
-    Args:
-        email: User email address
-        password: User password
-        name: Optional user display name
-
-    Returns:
-        dict with registration result
-    """
-    try:
-        request = RegisterRequest(email=email, password=password, name=name)
-        response = register(request)
-
-        return {
-            "status": "success",
-            "token": response.token,
-            "token_type": response.token_type,
-            "user": {
-                "id": str(response.user.id),
-                "email": response.user.email,
-                "name": response.user.name,
-                "created_at": response.user.created_at.isoformat()
-            }
+    return {
+        "message": response.message,
+        "confirmation_code": response.confirmation_code,
+        "user": {
+            "id": str(response.user.id),
+            "email": response.user.email,
+            "name": response.user.name,
+            "team": response.user.team,
+            "email_verified": response.user.email_verified,
+            "created_at": response.user.created_at.isoformat()
         }
-
-    except ValueError as e:
-        return {
-            "status": "error",
-            "error": "Validation Error" if "email" in str(e).lower() or "password" in str(e).lower() else "Conflict",
-            "message": str(e)
-        }
-
-    except Exception as e:
-        return {
-            "status": "error",
-            "error": "Internal Server Error",
-            "message": str(e)
-        }
+    }
 
 
 if __name__ == "__main__":
@@ -134,9 +125,10 @@ if __name__ == "__main__":
     parser.add_argument("--email", required=True, help="User email address")
     parser.add_argument("--password", required=True, help="User password")
     parser.add_argument("--name", help="User display name (optional)")
+    parser.add_argument("--team", help="User team (optional)")
     args = parser.parse_args()
 
-    result = main(args.email, args.password, args.name)
+    result = main(args.email, args.password, args.name, args.team)
 
     # Save to output folder
     output_dir = Path(__file__).parent / "output"

@@ -8,6 +8,7 @@ import {
   Connection,
   NodeChange,
   EdgeChange,
+  MarkerType,
 } from 'reactflow'
 import { useYjsCollaboration } from './useYjsCollaboration'
 
@@ -17,6 +18,7 @@ export interface MindMapNode extends Node {
     color?: string
     level?: number
     parentId?: string
+    collapsed?: boolean
   }
 }
 
@@ -32,7 +34,7 @@ function getColorForLevel(level: number): string {
   return colors[Math.min(level, 4)]
 }
 
-// Calculate position for child nodes - Downward tree layout (조직도 스타일)
+// Calculate position for child nodes - Balanced tree layout (centered around parent)
 function getChildPosition(parentNode: MindMapNode, existingNodes: MindMapNode[], level: number) {
   const baseX = parentNode.position.x
   const baseY = parentNode.position.y
@@ -42,42 +44,62 @@ function getChildPosition(parentNode: MindMapNode, existingNodes: MindMapNode[],
   const siblingCount = siblings.length
 
   // Spacing scales based on level for better organization
-  const verticalSpacing = 150 // Consistent vertical spacing between levels
-  const horizontalSpacing = level === 1 ? 300 : Math.max(200 - (level * 20), 120)
+  const verticalSpacing = 180
+  const horizontalSpacing = level === 1 ? 400 : Math.max(250 - (level * 20), 150)
 
-  // Calculate total width needed for all siblings
-  const totalWidth = siblingCount * horizontalSpacing
+  // Total children count including the new one being added
+  const totalChildren = siblingCount + 1
 
-  // Position new node: spread horizontally, place below parent
-  const xOffset = (siblingCount * horizontalSpacing) - (totalWidth / 2)
+  // Center all children around parent's X position
+  const startX = baseX - ((totalChildren - 1) * horizontalSpacing) / 2
+
+  // New node position (last index)
+  const newX = startX + siblingCount * horizontalSpacing
+
+  // Also reposition existing siblings to maintain balance
+  siblings.forEach((sibling, index) => {
+    sibling.position = {
+      x: startX + index * horizontalSpacing,
+      y: baseY + verticalSpacing,
+    }
+  })
 
   return {
-    x: baseX + xOffset,
+    x: newX,
     y: baseY + verticalSpacing
   }
 }
 
-// Calculate position for sibling nodes (same level) - horizontally aligned
+// Calculate position for sibling nodes (same level) - balanced around parent
 function getSiblingPosition(currentNode: MindMapNode, existingNodes: MindMapNode[], parentId?: string) {
   const siblings = existingNodes.filter(
     n => n.data.parentId === parentId && n.data.level === currentNode.data.level
   )
 
   const level = currentNode.data.level || 0
-  const horizontalSpacing = level === 1 ? 400 : Math.max(300 - (level * 30), 200)
+  const horizontalSpacing = level === 1 ? 400 : Math.max(250 - (level * 20), 150)
 
-  // Place to the right of the last sibling
-  if (siblings.length > 0) {
-    const lastSibling = siblings[siblings.length - 1]
-    return {
-      x: lastSibling.position.x + horizontalSpacing,
-      y: lastSibling.position.y // Same Y (same level)
+  // Find parent node to center around
+  const parentNode = parentId ? existingNodes.find(n => n.id === parentId) : null
+  const centerX = parentNode ? parentNode.position.x : currentNode.position.x
+
+  // Total siblings including the new one
+  const totalSiblings = siblings.length + 1
+
+  // Center all siblings around parent's X position
+  const startX = centerX - ((totalSiblings - 1) * horizontalSpacing) / 2
+
+  // Reposition existing siblings to maintain balance
+  siblings.forEach((sibling, index) => {
+    sibling.position = {
+      x: startX + index * horizontalSpacing,
+      y: sibling.position.y,
     }
-  }
+  })
 
-  // If no siblings, place next to current node
+  // New node gets the last position
   return {
-    x: currentNode.position.x + horizontalSpacing,
+    x: startX + siblings.length * horizontalSpacing,
     y: currentNode.position.y
   }
 }
@@ -91,14 +113,87 @@ export function useMindMapStore(documentId?: string) {
   const storageKey = documentId ? `mindmap_${documentId}` : null
 
   const [nodes, setNodes] = useState<MindMapNode[]>([
+    // Level 0: Root
     {
       id: '1',
       type: 'custom',
-      data: { label: 'Central Idea', color: '#6366f1', level: 0 },
-      position: { x: 0, y: 0 }, // Root at origin, fitView will center it
+      data: { label: '중심 주제', color: '#6366f1', level: 0 },
+      position: { x: 0, y: 0 },
+    },
+    // Level 1: Children
+    {
+      id: '2',
+      type: 'custom',
+      data: { label: '주제 1', color: '#3b82f6', level: 1, parentId: '1' },
+      position: { x: -400, y: 180 },
+    },
+    {
+      id: '3',
+      type: 'custom',
+      data: { label: '주제 2', color: '#3b82f6', level: 1, parentId: '1' },
+      position: { x: 0, y: 180 },
+    },
+    {
+      id: '4',
+      type: 'custom',
+      data: { label: '주제 3', color: '#3b82f6', level: 1, parentId: '1' },
+      position: { x: 400, y: 180 },
+    },
+    // Level 2: Grandchildren of 주제 1
+    {
+      id: '5',
+      type: 'custom',
+      data: { label: '하위 주제 1-1', color: '#10b981', level: 2, parentId: '2' },
+      position: { x: -500, y: 360 },
+    },
+    {
+      id: '6',
+      type: 'custom',
+      data: { label: '하위 주제 1-2', color: '#10b981', level: 2, parentId: '2' },
+      position: { x: -300, y: 360 },
+    },
+    // Level 2: Grandchildren of 주제 2
+    {
+      id: '7',
+      type: 'custom',
+      data: { label: '하위 주제 2-1', color: '#10b981', level: 2, parentId: '3' },
+      position: { x: -100, y: 360 },
+    },
+    {
+      id: '8',
+      type: 'custom',
+      data: { label: '하위 주제 2-2', color: '#10b981', level: 2, parentId: '3' },
+      position: { x: 100, y: 360 },
+    },
+    // Level 2: Grandchildren of 주제 3
+    {
+      id: '9',
+      type: 'custom',
+      data: { label: '하위 주제 3-1', color: '#10b981', level: 2, parentId: '4' },
+      position: { x: 300, y: 360 },
+    },
+    {
+      id: '10',
+      type: 'custom',
+      data: { label: '하위 주제 3-2', color: '#10b981', level: 2, parentId: '4' },
+      position: { x: 500, y: 360 },
     },
   ])
-  const [edges, setEdges] = useState<Edge[]>([])
+  const [edges, setEdges] = useState<Edge[]>([
+    // Root -> Level 1
+    { id: 'e1-2', source: '1', target: '2', type: 'smoothstep' },
+    { id: 'e1-3', source: '1', target: '3', type: 'smoothstep' },
+    { id: 'e1-4', source: '1', target: '4', type: 'smoothstep' },
+    // 주제 1 -> Level 2
+    { id: 'e2-5', source: '2', target: '5', type: 'smoothstep' },
+    { id: 'e2-6', source: '2', target: '6', type: 'smoothstep' },
+    // 주제 2 -> Level 2
+    { id: 'e3-7', source: '3', target: '7', type: 'smoothstep' },
+    { id: 'e3-8', source: '3', target: '8', type: 'smoothstep' },
+    // 주제 3 -> Level 2
+    { id: 'e4-9', source: '4', target: '9', type: 'smoothstep' },
+    { id: 'e4-10', source: '4', target: '10', type: 'smoothstep' },
+  ])
   const [history, setHistory] = useState<HistoryState[]>([])
   const [clipboard, setClipboard] = useState<MindMapNode | null>(null)
 
@@ -130,6 +225,7 @@ export function useMindMapStore(documentId?: string) {
     onlineUsers,
     syncLocalNodes,
     syncLocalEdges,
+    provider,
   } = useYjsCollaboration({
     documentId: documentId || 'default',
     onNodesChange: (remoteNodes) => {
@@ -261,7 +357,7 @@ export function useMindMapStore(documentId?: string) {
             id: `e-${parentId}-${newNodeId}`,
             source: parentId,
             target: newNodeId,
-            type: 'bezier',
+            type: 'smoothstep',
             animated: false,
           }]
         }
@@ -315,7 +411,7 @@ export function useMindMapStore(documentId?: string) {
                 id: `e-${newNode.data.parentId}-${newNodeId}`,
                 source: newNode.data.parentId!,
                 target: newNodeId,
-                type: 'bezier',
+                type: 'smoothstep',
                 animated: false,
               }]
             }
@@ -347,6 +443,32 @@ export function useMindMapStore(documentId?: string) {
           ? { ...node, data: { ...node.data, color } }
           : node
       )
+    )
+  }, [])
+
+  const toggleEdgeArrow = useCallback((edgeId: string) => {
+    setEdges((eds) =>
+      eds.map((edge) => {
+        if (edge.id === edgeId) {
+          const hasArrow = edge.markerEnd && typeof edge.markerEnd === 'object' && (edge.markerEnd as any).type
+          return {
+            ...edge,
+            markerEnd: hasArrow ? undefined : { type: MarkerType.ArrowClosed, width: 20, height: 20 },
+          }
+        }
+        return edge
+      })
+    )
+  }, [])
+
+  const updateEdgeStyle = useCallback((edgeId: string, updates: Partial<Edge>) => {
+    setEdges((eds) =>
+      eds.map((edge) => {
+        if (edge.id === edgeId) {
+          return { ...edge, ...updates }
+        }
+        return edge
+      })
     )
   }, [])
 
@@ -476,7 +598,7 @@ export function useMindMapStore(documentId?: string) {
             id: `e-${targetNodeId}-${newNodeId}`,
             source: targetNodeId,
             target: newNodeId,
-            type: 'bezier',
+            type: 'smoothstep',
             animated: false,
           }]
         })
@@ -527,8 +649,11 @@ export function useMindMapStore(documentId?: string) {
     findAllDescendants,
     moveNodeWithDescendants,
     reparentNode,
+    toggleEdgeArrow,
+    updateEdgeStyle,
     // Collaboration status
     isConnected,
     onlineUsers,
+    provider,
   }
 }

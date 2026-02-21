@@ -17,7 +17,7 @@ def verify_token(token: str) -> User:
 
     cursor.execute(
         """
-        SELECT id, email, name, created_at
+        SELECT id, email, name, team, email_verified, created_at
         FROM users
         WHERE id = %s
         """,
@@ -34,7 +34,9 @@ def verify_token(token: str) -> User:
         id=row[0],
         email=row[1],
         name=row[2],
-        created_at=row[3]
+        team=row[3],
+        email_verified=row[4],
+        created_at=row[5]
     )
 
     return user
@@ -102,6 +104,8 @@ if __name__ == "__main__":
         print(f"  ID: {result['user']['id']}")
         print(f"  Email: {result['user']['email']}")
         print(f"  Name: {result['user']['name']}")
+        print(f"  Team: {result['user']['team']}")
+        print(f"  Email Verified: {result['user']['email_verified']}")
         print(f"  Created At: {result['user']['created_at']}")
     else:
         print(f"\nError:")

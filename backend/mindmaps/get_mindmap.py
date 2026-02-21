@@ -57,6 +57,19 @@ def get_mindmap(token: str, mindmap_id: str) -> dict:
         conn.close()
         raise HTTPException(status_code=403, detail="You do not have access to this mind map")
 
+    # Get current user's permission
+    current_user_permission = None
+    if is_owner:
+        current_user_permission = "owner"
+    else:
+        cursor.execute("""
+            SELECT permission FROM collaborators
+            WHERE mindmap_id = %s AND user_id = %s
+        """, (mindmap_id, user_id))
+        perm_row = cursor.fetchone()
+        if perm_row:
+            current_user_permission = perm_row[0]
+
     # Count collaborators
     cursor.execute("""
         SELECT COUNT(*) FROM collaborators WHERE mindmap_id = %s
@@ -89,7 +102,8 @@ def get_mindmap(token: str, mindmap_id: str) -> dict:
         updated_at=updated_at,
         owner=owner,
         collaborators_count=collaborators_count,
-        yjs_state=yjs_state_base64
+        yjs_state=yjs_state_base64,
+        current_user_permission=current_user_permission
     )
 
     return mindmap_detail.model_dump(mode='json')

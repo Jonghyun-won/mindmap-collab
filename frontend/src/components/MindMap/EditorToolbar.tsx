@@ -1,4 +1,4 @@
-import { Plus, Save, Trash2, Palette, Info, Users, ArrowLeft, Share2 } from 'lucide-react'
+import { Plus, Save, Trash2, Palette, Info, Users, ArrowLeft, Share2, Clock, Download } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -14,6 +14,9 @@ interface EditorToolbarProps {
   lastSaved: Date | null
   activeUsers?: number // 실시간 협업 인원 (추후 구현)
   onShareClick?: () => void
+  onShowHistory?: () => void
+  onShowExport?: () => void
+  readOnly?: boolean
 }
 
 const COLORS = [
@@ -39,6 +42,9 @@ export default function EditorToolbar({
   lastSaved,
   activeUsers = 1, // 기본값: 1명 (본인)
   onShareClick,
+  onShowHistory,
+  onShowExport,
+  readOnly = false,
 }: EditorToolbarProps) {
   const navigate = useNavigate()
   const [showColorPicker, setShowColorPicker] = useState(false)
@@ -99,72 +105,85 @@ export default function EditorToolbar({
 
       {/* Center: Minimal top toolbar */}
       <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 px-4 py-2">
-        {/* Add node */}
-        <button
-          onClick={onAddNode}
-          className="p-2 hover:bg-gray-100 rounded-md transition-colors group"
-          title="노드 추가 (Enter: 형제 | Ctrl+Enter: 자식)"
-        >
-          <Plus className="w-5 h-5 text-gray-700" />
-        </button>
+        {/* Read-only badge */}
+        {readOnly && (
+          <div className="px-2 py-1 bg-amber-50 text-amber-700 text-xs font-medium rounded-md border border-amber-200">
+            읽기 전용
+          </div>
+        )}
 
-        <div className="w-px h-6 bg-gray-200" />
+        {/* Add node */}
+        {!readOnly && (
+          <button
+            onClick={onAddNode}
+            className="p-2 hover:bg-gray-100 rounded-md transition-colors group"
+            title="노드 추가 (Enter: 형제 | Ctrl+Enter: 자식)"
+          >
+            <Plus className="w-5 h-5 text-gray-700" />
+          </button>
+        )}
+
+        {!readOnly && <div className="w-px h-6 bg-gray-200" />}
 
         {/* Color picker */}
-        <div className="relative">
+        {!readOnly && (
+          <div className="relative">
+            <button
+              onClick={() => setShowColorPicker(!showColorPicker)}
+              disabled={!selectedNodeId}
+              className={`p-2 rounded-md transition-colors ${
+                selectedNodeId
+                  ? 'hover:bg-gray-100 text-gray-700'
+                  : 'text-gray-300 cursor-not-allowed'
+              }`}
+              title="Change color"
+            >
+              <Palette className="w-5 h-5" />
+            </button>
+
+            {/* Color palette popup */}
+            {showColorPicker && selectedNodeId && (
+              <>
+                <div
+                  className="fixed inset-0 z-20"
+                  onClick={() => setShowColorPicker(false)}
+                />
+                <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-30 bg-white rounded-lg shadow-xl border border-gray-200 p-3">
+                  <div className="grid grid-cols-4 gap-2">
+                    {COLORS.map((color) => (
+                      <button
+                        key={color.value}
+                        onClick={() => {
+                          onColorChange?.(color.value)
+                          setShowColorPicker(false)
+                        }}
+                        className="w-10 h-10 rounded-lg border-2 border-gray-200 hover:border-gray-400 hover:scale-110 transition-all"
+                        style={{ backgroundColor: color.value }}
+                        title={color.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Delete */}
+        {!readOnly && (
           <button
-            onClick={() => setShowColorPicker(!showColorPicker)}
+            onClick={onDeleteNode}
             disabled={!selectedNodeId}
             className={`p-2 rounded-md transition-colors ${
               selectedNodeId
-                ? 'hover:bg-gray-100 text-gray-700'
+                ? 'hover:bg-red-50 text-red-600'
                 : 'text-gray-300 cursor-not-allowed'
             }`}
-            title="Change color"
+            title="Delete node (Delete)"
           >
-            <Palette className="w-5 h-5" />
+            <Trash2 className="w-5 h-5" />
           </button>
-
-          {/* Color palette popup */}
-          {showColorPicker && selectedNodeId && (
-            <>
-              <div
-                className="fixed inset-0 z-20"
-                onClick={() => setShowColorPicker(false)}
-              />
-              <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-30 bg-white rounded-lg shadow-xl border border-gray-200 p-3">
-                <div className="grid grid-cols-4 gap-2">
-                  {COLORS.map((color) => (
-                    <button
-                      key={color.value}
-                      onClick={() => {
-                        onColorChange?.(color.value)
-                        setShowColorPicker(false)
-                      }}
-                      className="w-10 h-10 rounded-lg border-2 border-gray-200 hover:border-gray-400 hover:scale-110 transition-all"
-                      style={{ backgroundColor: color.value }}
-                      title={color.name}
-                    />
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Delete */}
-        <button
-          onClick={onDeleteNode}
-          disabled={!selectedNodeId}
-          className={`p-2 rounded-md transition-colors ${
-            selectedNodeId
-              ? 'hover:bg-red-50 text-red-600'
-              : 'text-gray-300 cursor-not-allowed'
-          }`}
-          title="Delete node (Delete)"
-        >
-          <Trash2 className="w-5 h-5" />
-        </button>
+        )}
 
         <div className="w-px h-6 bg-gray-200" />
 
@@ -179,22 +198,46 @@ export default function EditorToolbar({
           </button>
         )}
 
+        {/* History button */}
+        {onShowHistory && (
+          <button
+            onClick={onShowHistory}
+            className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors"
+            title="변경 히스토리"
+          >
+            <Clock className="w-5 h-5" />
+          </button>
+        )}
+
+        {/* Export button */}
+        {onShowExport && (
+          <button
+            onClick={onShowExport}
+            className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors"
+            title="내보내기"
+          >
+            <Download className="w-5 h-5" />
+          </button>
+        )}
+
         {/* Save button */}
-        <button
-          onClick={onSave}
-          disabled={isSaving}
-          className={`px-3 py-2 rounded-md transition-colors flex items-center gap-2 ${
-            isSaving
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-blue-500 hover:bg-blue-600 text-white'
-          }`}
-          title="Save mindmap (Ctrl+S)"
-        >
-          <Save className="w-4 h-4" />
-          <span className="text-sm font-medium">
-            {isSaving ? 'Saving...' : 'Save'}
-          </span>
-        </button>
+        {!readOnly && (
+          <button
+            onClick={onSave}
+            disabled={isSaving}
+            className={`px-3 py-2 rounded-md transition-colors flex items-center gap-2 ${
+              isSaving
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-blue-500 hover:bg-blue-600 text-white'
+            }`}
+            title="Save mindmap (Ctrl+S)"
+          >
+            <Save className="w-4 h-4" />
+            <span className="text-sm font-medium">
+              {isSaving ? 'Saving...' : 'Save'}
+            </span>
+          </button>
+        )}
 
         {/* Help button */}
         <button

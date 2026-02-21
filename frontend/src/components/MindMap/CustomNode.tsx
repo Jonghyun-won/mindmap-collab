@@ -6,6 +6,14 @@ interface CustomNodeData {
   color?: string
   level?: number
   parentId?: string
+  borderColor?: string
+  media?: {
+    type: 'image' | 'video'
+    url: string
+    width?: number
+    height?: number
+  } | null
+  readOnly?: boolean
 }
 
 function CustomNode({ data, id, selected }: NodeProps<CustomNodeData>) {
@@ -43,6 +51,7 @@ function CustomNode({ data, id, selected }: NodeProps<CustomNodeData>) {
   }, [label, isEditing, id, data.label])
 
   const handleDoubleClick = () => {
+    if (data.readOnly) return
     setIsEditing(true)
   }
 
@@ -58,16 +67,31 @@ function CustomNode({ data, id, selected }: NodeProps<CustomNodeData>) {
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const isCtrl = e.ctrlKey || e.metaKey
+
+    // Ctrl+Enter: create child node
+    if (e.key === 'Enter' && isCtrl) {
       e.preventDefault()
       e.stopPropagation()
+      handleBlur()
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('addChildNode', { detail: { parentId: id } }))
+      }, 50)
+      return
+    }
 
-      if (isEditing) {
-        handleBlur()
-        return
-      }
-    } else if (e.key === 'Escape') {
+    // Enter (without Shift): finish editing
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      e.stopPropagation()
+      handleBlur()
+      return
+    }
+
+    // Shift+Enter: allow default behavior (newline in textarea)
+
+    if (e.key === 'Escape') {
       setLabel(data.label)
       setIsEditing(false)
     }
@@ -127,13 +151,16 @@ function CustomNode({ data, id, selected }: NodeProps<CustomNodeData>) {
           transition-all duration-200
           ${selected
             ? 'border-4 border-red-500 shadow-xl scale-105'
-            : 'border-2 border-gray-300 hover:shadow-lg hover:scale-102'
+            : 'hover:shadow-lg hover:scale-102'
           }
         `}
         style={{
           backgroundColor: bgColor,
           color: textColor,
           opacity: 1,
+          borderWidth: selected ? undefined : '2px',
+          borderStyle: selected ? undefined : 'solid',
+          borderColor: selected ? undefined : (data.borderColor || '#d1d5db'),
         }}
         onDoubleClick={handleDoubleClick}
         onKeyDown={handleKeyDown}
@@ -150,21 +177,49 @@ function CustomNode({ data, id, selected }: NodeProps<CustomNodeData>) {
           }}
         />
 
-        {isEditing ? (
-          <input
-            type="text"
+        {isEditing && !data.readOnly ? (
+          <textarea
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
+            rows={1}
             autoFocus
-            className="bg-transparent border-none outline-none w-full text-center"
+            className="bg-transparent border-none outline-none w-full text-center resize-none"
             style={{ color: textColor }}
             placeholder="Enter text..."
           />
         ) : (
-          <div className="text-center whitespace-nowrap overflow-hidden text-ellipsis">
+          <div className="text-center whitespace-pre-wrap">
             {data.label}
+          </div>
+        )}
+
+        {/* Media content */}
+        {data.media && (
+          <div className="mt-2 flex justify-center">
+            {data.media.type === 'image' ? (
+              <img
+                src={data.media.url}
+                alt=""
+                className="rounded-lg object-contain"
+                style={{
+                  maxWidth: data.media.width || 280,
+                  maxHeight: data.media.height || 200,
+                }}
+                draggable={false}
+              />
+            ) : data.media.type === 'video' ? (
+              <video
+                src={data.media.url}
+                controls
+                className="rounded-lg"
+                style={{
+                  maxWidth: data.media.width || 280,
+                  maxHeight: data.media.height || 200,
+                }}
+              />
+            ) : null}
           </div>
         )}
 

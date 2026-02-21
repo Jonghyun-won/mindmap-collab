@@ -23,6 +23,7 @@ import { ChangeHistory } from './ChangeHistory'
 import { NodeDetailPanel } from '@/components/ui/NodeDetailPanel'
 import { ExportModal } from '@/components/ui/ExportModal'
 import { EdgeDetailPanel } from '@/components/ui/EdgeDetailPanel'
+import { apiClient } from '@/lib/api-client'
 import { useMindMapStore } from '@/hooks/useMindMapStore'
 import { useSaveMindMap } from '@/hooks/useSaveMindMap'
 import { usePresence } from '@/hooks/usePresence'
@@ -96,6 +97,20 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
   // Real-time presence (cursors)
   const { collaborators, updateCursor } = usePresence(provider, user?.name || user?.email || 'Anonymous')
 
+  // Fire-and-forget change history recording
+  const recordChange = useCallback((action: string, nodeId?: string, details?: Record<string, any>) => {
+    if (!documentId) return
+    apiClient.recordChange(documentId, action, nodeId, details).catch(() => {
+      // Silently ignore errors - history recording shouldn't break the app
+    })
+  }, [documentId])
+
+  // Wrap onConnect to record edge additions
+  const onConnectWithHistory = useCallback((connection: any) => {
+    onConnect(connection)
+    recordChange('edge_added', undefined, { source: connection.source, target: connection.target })
+  }, [onConnect, recordChange])
+
   // Manual save handler
   const handleSave = useCallback(async () => {
     // Save to localStorage (immediate)
@@ -135,11 +150,12 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
     const handleNodeUpdate = (event: any) => {
       const { id, label } = event.detail
       updateNodeLabel(id, label)
+      recordChange('node_edited', id, { label })
     }
 
     window.addEventListener('nodeUpdate', handleNodeUpdate)
     return () => window.removeEventListener('nodeUpdate', handleNodeUpdate)
-  }, [updateNodeLabel])
+  }, [updateNodeLabel, recordChange])
 
   // Toggle collapse/expand for a node's children
   const handleToggleCollapse = useCallback((nodeId: string) => {
@@ -268,6 +284,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
       if (event.key === 'Delete' && selectedNode) {
         event.preventDefault()
         deleteNode(selectedNode)
+        recordChange('node_deleted', selectedNode)
         setSelectedNode(undefined)
         return
       }
@@ -297,6 +314,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
         event.preventDefault()
         event.stopPropagation()
         const newNodeId = addSiblingNode(selectedNode)
+        recordChange('node_added', newNodeId, { label: 'New Node', type: 'sibling', parentNodeId: selectedNode })
         setTimeout(() => {
           setSelectedNode(newNodeId)
           // 새 노드 편집 모드로 자동 진입
@@ -315,6 +333,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
         event.preventDefault()
         event.stopPropagation()
         const newNodeId = addChildNode(selectedNode)
+        recordChange('node_added', newNodeId, { label: 'New Node', type: 'child', parentNodeId: selectedNode })
         setTimeout(() => {
           setSelectedNode(newNodeId)
           // 새 노드 편집 모드로 자동 진입
@@ -383,23 +402,25 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
 
     window.addEventListener('keydown', handleKeyDown, { capture: true })
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true })
-  }, [selectedNode, deleteNode, addChildNode, addSiblingNode, copyNode, pasteNode, undo, handleSave, handleToggleCollapse, nodes, setNodes])
+  }, [selectedNode, deleteNode, addChildNode, addSiblingNode, copyNode, pasteNode, undo, handleSave, handleToggleCollapse, nodes, setNodes, recordChange])
 
   const handleColorChange = useCallback(
     (color: string) => {
       if (selectedNode) {
         updateNodeColor(selectedNode, color)
+        recordChange('style_changed', selectedNode, { color })
       }
     },
-    [selectedNode, updateNodeColor]
+    [selectedNode, updateNodeColor, recordChange]
   )
 
   const handleDeleteNode = useCallback(() => {
     if (selectedNode) {
       deleteNode(selectedNode)
+      recordChange('node_deleted', selectedNode)
       setSelectedNode(undefined)
     }
-  }, [selectedNode, deleteNode])
+  }, [selectedNode, deleteNode, recordChange])
 
   // Handle node click to open detail panel
   const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
@@ -565,7 +586,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
+          onConnect={onConnectWithHistory}
           onSelectionChange={onSelectionChange}
           onNodeClick={onNodeClick}
           onEdgeClick={onEdgeClick}

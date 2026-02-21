@@ -39,7 +39,7 @@ export function MarkerPicker({ value, onChange }: MarkerPickerProps) {
 
       <RadioGroup
         value={value?.type || ""}
-        onValueChange={(v) => handleTypeChange(v as MarkerType)}
+        onValueChange={(v: string) => handleTypeChange(v as MarkerType)}
       >
         <div className="flex items-center space-x-2">
           <RadioGroupItem value="priority" id="priority" />

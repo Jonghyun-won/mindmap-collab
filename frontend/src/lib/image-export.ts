@@ -1,10 +1,21 @@
 import { toPng, toSvg } from 'html-to-image'
 import { jsPDF } from 'jspdf'
+import { getNodesBounds, getViewportForBounds } from 'reactflow'
+import type { Node } from 'reactflow'
 
-function getFlowElements() {
+const IMAGE_WIDTH = 1920
+const IMAGE_HEIGHT = 1080
+
+function getViewport() {
   const viewport = document.querySelector('.react-flow__viewport') as HTMLElement | null
   if (!viewport) throw new Error('ReactFlow viewport not found')
   return viewport
+}
+
+function computeExportTransform(nodes: Node[]) {
+  const nodesBounds = getNodesBounds(nodes)
+  const { x, y, zoom } = getViewportForBounds(nodesBounds, IMAGE_WIDTH, IMAGE_HEIGHT, 0.5, 2, 0.1)
+  return { x, y, zoom }
 }
 
 const filterNodes = (node: HTMLElement): boolean => {
@@ -15,20 +26,20 @@ const filterNodes = (node: HTMLElement): boolean => {
     !node.classList.contains('react-flow__attribution')
 }
 
-export async function exportToPNG(filename: string = 'mindmap.png'): Promise<void> {
-  const viewport = getFlowElements()
-
-  const flowContainer = document.querySelector('.react-flow') as HTMLElement
-  const flowRect = flowContainer.getBoundingClientRect()
-
-  const imageWidth = flowRect.width
-  const imageHeight = flowRect.height
+export async function exportToPNG(nodes: Node[], filename: string = 'mindmap.png'): Promise<void> {
+  const viewport = getViewport()
+  const { x, y, zoom } = computeExportTransform(nodes)
 
   const dataUrl = await toPng(viewport, {
     backgroundColor: '#ffffff',
     pixelRatio: 2,
-    width: imageWidth,
-    height: imageHeight,
+    width: IMAGE_WIDTH,
+    height: IMAGE_HEIGHT,
+    style: {
+      width: `${IMAGE_WIDTH}px`,
+      height: `${IMAGE_HEIGHT}px`,
+      transform: `translate(${x}px, ${y}px) scale(${zoom})`,
+    },
     filter: filterNodes,
   })
 
@@ -38,16 +49,19 @@ export async function exportToPNG(filename: string = 'mindmap.png'): Promise<voi
   link.click()
 }
 
-export async function exportToSVG(filename: string = 'mindmap.svg'): Promise<void> {
-  const viewport = getFlowElements()
-
-  const flowContainer = document.querySelector('.react-flow') as HTMLElement
-  const flowRect = flowContainer.getBoundingClientRect()
+export async function exportToSVG(nodes: Node[], filename: string = 'mindmap.svg'): Promise<void> {
+  const viewport = getViewport()
+  const { x, y, zoom } = computeExportTransform(nodes)
 
   const dataUrl = await toSvg(viewport, {
     backgroundColor: '#ffffff',
-    width: flowRect.width,
-    height: flowRect.height,
+    width: IMAGE_WIDTH,
+    height: IMAGE_HEIGHT,
+    style: {
+      width: `${IMAGE_WIDTH}px`,
+      height: `${IMAGE_HEIGHT}px`,
+      transform: `translate(${x}px, ${y}px) scale(${zoom})`,
+    },
     filter: filterNodes,
   })
 
@@ -57,17 +71,20 @@ export async function exportToSVG(filename: string = 'mindmap.svg'): Promise<voi
   link.click()
 }
 
-export async function exportToPDF(filename: string = 'mindmap.pdf', title?: string): Promise<void> {
-  const viewport = getFlowElements()
-
-  const flowContainer = document.querySelector('.react-flow') as HTMLElement
-  const flowRect = flowContainer.getBoundingClientRect()
+export async function exportToPDF(nodes: Node[], filename: string = 'mindmap.pdf', title?: string): Promise<void> {
+  const viewport = getViewport()
+  const { x, y, zoom } = computeExportTransform(nodes)
 
   const dataUrl = await toPng(viewport, {
     backgroundColor: '#ffffff',
     pixelRatio: 2,
-    width: flowRect.width,
-    height: flowRect.height,
+    width: IMAGE_WIDTH,
+    height: IMAGE_HEIGHT,
+    style: {
+      width: `${IMAGE_WIDTH}px`,
+      height: `${IMAGE_HEIGHT}px`,
+      transform: `translate(${x}px, ${y}px) scale(${zoom})`,
+    },
     filter: filterNodes,
   })
 
@@ -100,7 +117,7 @@ export async function exportToPDF(filename: string = 'mindmap.pdf', title?: stri
   const scaledWidth = imgWidth * scale
   const scaledHeight = imgHeight * scale
 
-  const x = (pageWidth - scaledWidth) / 2
-  pdf.addImage(dataUrl, 'PNG', x, yOffset, scaledWidth, scaledHeight)
+  const x2 = (pageWidth - scaledWidth) / 2
+  pdf.addImage(dataUrl, 'PNG', x2, yOffset, scaledWidth, scaledHeight)
   pdf.save(filename)
 }

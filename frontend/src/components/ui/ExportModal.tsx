@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useReactFlow } from "reactflow"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -24,6 +25,7 @@ export function ExportModal({
   mindmapId,
   mindmapTitle,
 }: ExportModalProps) {
+  const { getNodes } = useReactFlow()
   const { exportJSON, isExporting } = useExport(mindmapId)
   const { importJSON, isImporting } = useImport(mindmapId)
   const { success, error } = useToast()
@@ -44,7 +46,7 @@ export function ExportModal({
   const handleExportPNG = async () => {
     setExportingType("png")
     try {
-      await exportToPNG(`${mindmapTitle}.png`)
+      await exportToPNG(getNodes(), `${mindmapTitle}.png`)
       success("PNG exported successfully")
       onOpenChange(false)
     } catch (err) {
@@ -57,7 +59,7 @@ export function ExportModal({
   const handleExportSVG = async () => {
     setExportingType("svg")
     try {
-      await exportToSVG(`${mindmapTitle}.svg`)
+      await exportToSVG(getNodes(), `${mindmapTitle}.svg`)
       success("SVG exported successfully")
       onOpenChange(false)
     } catch (err) {
@@ -70,7 +72,7 @@ export function ExportModal({
   const handleExportPDF = async () => {
     setExportingType("pdf")
     try {
-      await exportToPDF(`${mindmapTitle}.pdf`, mindmapTitle)
+      await exportToPDF(getNodes(), `${mindmapTitle}.pdf`, mindmapTitle)
       success("PDF exported successfully")
       onOpenChange(false)
     } catch (err) {

@@ -4,6 +4,7 @@ import { Trash2, Edit2 } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { MindMap } from '@/types/mindmap'
 import { useAuth } from '@/contexts/AuthContext'
+import ReleaseNotesModal from '@/components/ui/ReleaseNotesModal'
 
 export default function Dashboard() {
   const { user, logout } = useAuth()
@@ -228,6 +229,9 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* Release Notes Button */}
+      <ReleaseNotesModal />
     </div>
   )
 }

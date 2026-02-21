@@ -21,6 +21,7 @@ import ShareModal from './ShareModal'
 import CollaboratorCursors from './CollaboratorCursors'
 import { ChangeHistory } from './ChangeHistory'
 import { NodeDetailPanel } from '@/components/ui/NodeDetailPanel'
+import { ExportModal } from '@/components/ui/ExportModal'
 import { EdgeDetailPanel } from '@/components/ui/EdgeDetailPanel'
 import { useMindMapStore } from '@/hooks/useMindMapStore'
 import { useSaveMindMap } from '@/hooks/useSaveMindMap'
@@ -120,6 +121,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   const [selectedNodeForDetail, setSelectedNodeForDetail] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+  const [showExport, setShowExport] = useState(false)
 
   // Handle node selection
   const onSelectionChange = useCallback(({ nodes }: any) => {
@@ -551,6 +553,8 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
           isSaving={isSaving}
           lastSaved={lastSaved}
           onShareClick={() => setIsShareModalOpen(true)}
+          onShowExport={() => setShowExport(true)}
+          onShowHistory={() => setShowHistory(true)}
         />
       </div>
 
@@ -661,6 +665,14 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
         onClose={() => setIsShareModalOpen(false)}
         mindMapId={documentId}
         mindMapTitle={mindMapTitle}
+      />
+
+      {/* Export Modal */}
+      <ExportModal
+        open={showExport}
+        onOpenChange={setShowExport}
+        mindmapId={documentId || ''}
+        mindmapTitle={mindMapTitle}
       />
       </div>
 

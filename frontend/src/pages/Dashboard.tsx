@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trash2, Edit2 } from 'lucide-react'
+import { Trash2, Edit2, Copy } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { MindMap } from '@/types/mindmap'
 import { useAuth } from '@/contexts/AuthContext'
@@ -55,6 +55,17 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error deleting mind map:', error)
       alert('마인드맵 삭제에 실패했습니다')
+    }
+  }
+
+  const duplicateMindMap = async (id: string, event: React.MouseEvent) => {
+    event.stopPropagation()
+    try {
+      const newMindMap = await apiClient.duplicateMindMap(id)
+      setMindMaps([newMindMap, ...mindMaps])
+    } catch (error) {
+      console.error('Error duplicating mind map:', error)
+      alert('마인드맵 복제에 실패했습니다')
     }
   }
 
@@ -187,6 +198,13 @@ export default function Dashboard() {
                     title="이름 변경"
                   >
                     <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => duplicateMindMap(mindMap.id, e)}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                    title="복제"
+                  >
+                    <Copy className="w-4 h-4" />
                   </button>
                   <button
                     onClick={(e) => deleteMindMap(mindMap.id, mindMap.title, e)}

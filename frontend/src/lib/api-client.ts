@@ -201,6 +201,12 @@ class ApiClient {
     })
   }
 
+  async duplicateMindMap(id: string): Promise<MindMap> {
+    return this.request<MindMap>(`/mindmaps/${id}/duplicate`, {
+      method: 'POST',
+    })
+  }
+
   // ========== Collaborators Methods ==========
 
   async getCollaborators(mindMapId: string): Promise<Collaborator[]> {

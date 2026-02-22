@@ -1,4 +1,5 @@
 import os
+import uuid
 from fastapi import FastAPI, HTTPException, Header, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -329,6 +330,82 @@ def delete_mindmap_endpoint(
             raise HTTPException(status_code=status, detail=result["error"])
 
         return None
+    except HTTPException:
+        raise
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/mindmaps/{id}/duplicate", response_model=MindMap, status_code=201)
+def duplicate_mindmap_endpoint(
+    id: str,
+    token: str = Depends(get_current_user)
+):
+    """Duplicate a mindmap with all its Yjs state data.
+
+    Creates a new mindmap with title "{original_title} (복사본)".
+    User must be owner or collaborator to duplicate.
+    """
+    try:
+        from conn import get_db_connection
+        from utils.auth_helper import verify_jwt_token
+
+        payload = verify_jwt_token(token)
+        user_id = payload["user_id"]
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Get original mindmap
+        cur.execute(
+            "SELECT id, title, owner_id, yjs_state FROM mindmaps WHERE id = %s",
+            (id,)
+        )
+        original = cur.fetchone()
+        if not original:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Mind map not found")
+
+        original_id, original_title, owner_id, yjs_state = original
+
+        # Check access (owner or collaborator)
+        is_owner = str(owner_id) == str(user_id)
+        if not is_owner:
+            cur.execute(
+                "SELECT 1 FROM collaborators WHERE mindmap_id = %s AND user_id = %s",
+                (id, user_id)
+            )
+            if not cur.fetchone():
+                cur.close()
+                conn.close()
+                raise HTTPException(status_code=403, detail="You do not have access to this mind map")
+
+        # Create duplicate
+        new_title = f"{original_title} (복사본)"
+
+        cur.execute(
+            """INSERT INTO mindmaps (title, owner_id, yjs_state)
+               VALUES (%s, %s, %s)
+               RETURNING id, title, owner_id, created_at, updated_at""",
+            (new_title, user_id, yjs_state)
+        )
+
+        row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        from uuid import UUID
+        return MindMap(
+            id=UUID(str(row[0])),
+            title=row[1],
+            owner_id=UUID(str(row[2])),
+            created_at=row[3],
+            updated_at=row[4]
+        )
     except HTTPException:
         raise
     except JWTError:

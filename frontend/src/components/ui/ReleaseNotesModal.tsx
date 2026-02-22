@@ -39,7 +39,7 @@ export default function ReleaseNotesModal() {
           className="fixed bottom-4 left-4 z-50 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-full shadow-sm hover:text-blue-600 hover:border-blue-300 hover:shadow transition-all"
         >
           <Megaphone className="w-3.5 h-3.5" />
-          v4
+          v5
         </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
@@ -56,6 +56,27 @@ export default function ReleaseNotesModal() {
               title="새로운 기능"
               items={[
                 '마인드맵 간 노드 복사/붙여넣기 지원 (하위 노드 포함 서브트리 전체 복사)',
+                'dagre 기반 자동 레이아웃 엔진 도입 (노드 겹침 완전 해결)',
+                '자동 정렬 버튼 추가: 트리(위→아래) / 트리(왼→오른쪽) 선택 가능',
+                '앱 내 릴리즈 노트 확인 기능 추가',
+              ]}
+            />
+            <Category
+              icon="🔧"
+              title="개선사항"
+              items={[
+                '노드 추가/삭제/재배치 시 자동으로 전체 트리 재정렬',
+                '노드 드래그 후 부모 변경 시 자동 레이아웃 적용',
+                '노드 크기(레벨, 텍스트 길이, 미디어) 기반 동적 간격 계산',
+                '루트 노드 위치 고정 (앵커) 기능으로 레이아웃 변경 시 화면 점프 방지',
+              ]}
+            />
+            <Category
+              icon="🐛"
+              title="버그 수정"
+              items={[
+                '형제 노드 재배치 시 React 불변 상태 업데이트 누락 수정',
+                '노드 삭제 후 빈 공간이 자동으로 메워지지 않던 문제 해결',
               ]}
             />
           </Section>

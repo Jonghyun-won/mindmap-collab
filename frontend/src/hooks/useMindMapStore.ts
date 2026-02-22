@@ -87,7 +87,12 @@ function layoutAndSetHandles(
   direction: 'TB' | 'RL' | 'BI',
   anchorNodeId?: string,
 ): MindMapNode[] {
-  const positioned = applyDagreLayout(nodes, edgesList, { direction, anchorNodeId })
+  // Only anchor the root for TB layout. For RL and BI, anchoring the root
+  // at its original (TB) position would reverse the intended direction —
+  // dagre places the root on the right for RL, but anchoring shifts it back
+  // to the left, making the tree appear as LR instead.
+  const effectiveAnchor = direction === 'TB' ? anchorNodeId : undefined
+  const positioned = applyDagreLayout(nodes, edgesList, { direction, anchorNodeId: effectiveAnchor })
   return setHandlePositions(positioned, direction)
 }
 

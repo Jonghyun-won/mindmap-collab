@@ -17,8 +17,8 @@ def verify_token(token: str) -> User:
 
     cursor.execute(
         """
-        SELECT id, email, name, team, email_verified, created_at
-        FROM users
+        SELECT id, email, name, team, email_verified, created_at, role
+        FROM public.users
         WHERE id = %s
         """,
         (user_id,)
@@ -36,7 +36,8 @@ def verify_token(token: str) -> User:
         name=row[2],
         team=row[3],
         email_verified=row[4],
-        created_at=row[5]
+        created_at=row[5],
+        role=row[6],
     )
 
     return user

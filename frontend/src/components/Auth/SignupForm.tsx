@@ -13,7 +13,6 @@ export default function SignupForm({ onToggle }: { onToggle: () => void }) {
 
   // Step 2 state
   const [registeredEmail, setRegisteredEmail] = useState('')
-  const [confirmationCode, setConfirmationCode] = useState('')
   const [inputCode, setInputCode] = useState('')
   const [resendMessage, setResendMessage] = useState('')
 
@@ -41,14 +40,8 @@ export default function SignupForm({ onToggle }: { onToggle: () => void }) {
     setLoading(true)
 
     try {
-      const result = await register(
-        email,
-        password,
-        name.trim(),
-        team.trim() || undefined
-      )
+      await register(email, password, name.trim(), team.trim() || undefined)
       setRegisteredEmail(email)
-      setConfirmationCode(result.confirmation_code)
       setStep(2)
     } catch (err) {
       setError(err instanceof Error ? err.message : '회원가입에 실패했습니다')
@@ -70,7 +63,6 @@ export default function SignupForm({ onToggle }: { onToggle: () => void }) {
 
     try {
       await confirmEmail(registeredEmail, inputCode.trim())
-      // confirmEmail sets user + token in context, navigate handled by parent
     } catch (err) {
       setError(err instanceof Error ? err.message : '인증에 실패했습니다')
     } finally {
@@ -83,9 +75,8 @@ export default function SignupForm({ onToggle }: { onToggle: () => void }) {
     setResendMessage('')
 
     try {
-      const result = await resendConfirmation(registeredEmail)
-      setConfirmationCode(result.confirmation_code)
-      setResendMessage('인증코드가 재발송되었습니다')
+      await resendConfirmation(registeredEmail)
+      setResendMessage('인증코드가 이메일로 재발송되었습니다')
     } catch (err) {
       setError(err instanceof Error ? err.message : '코드 재발송에 실패했습니다')
     }
@@ -103,14 +94,11 @@ export default function SignupForm({ onToggle }: { onToggle: () => void }) {
                 회원가입이 완료되었습니다!
               </h2>
               <p className="text-gray-600 text-sm">
-                아래 인증코드를 입력하여 이메일을 인증해주세요.
+                <span className="font-medium text-blue-600">{registeredEmail}</span>
+                으로 인증코드가 발송되었습니다.
               </p>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center mb-6">
-              <p className="text-sm text-blue-600 mb-1">인증 코드</p>
-              <p className="text-2xl font-bold tracking-widest text-blue-700">
-                {confirmationCode}
+              <p className="text-gray-500 text-xs mt-1">
+                이메일을 확인하여 6자리 인증코드를 입력해주세요.
               </p>
             </div>
 

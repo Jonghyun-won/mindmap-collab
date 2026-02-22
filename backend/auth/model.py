@@ -10,6 +10,7 @@ class User(BaseModel):
     name: Optional[str] = None
     team: Optional[str] = None
     email_verified: bool = False
+    role: str = "user"
     created_at: datetime
 
 # Request models
@@ -39,4 +40,3 @@ class LoginResponse(BaseModel):
 class RegisterResponse(BaseModel):
     message: str
     user: User
-    confirmation_code: str

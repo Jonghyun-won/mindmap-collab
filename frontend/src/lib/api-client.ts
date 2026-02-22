@@ -332,6 +332,32 @@ class ApiClient {
       }
     )
   }
+
+  // ========== Admin Methods ==========
+
+  async getAdminStats(): Promise<any> {
+    return this.request<any>('/admin/stats')
+  }
+
+  async getAdminUsers(page: number = 1, limit: number = 20, search?: string): Promise<any> {
+    const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() })
+    if (search) params.set('search', search)
+    return this.request<any>(`/admin/users?${params}`)
+  }
+
+  async updateUserRole(userId: string, role: string): Promise<any> {
+    return this.request<any>(`/admin/users/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    })
+  }
+
+  async updateUserStatus(userId: string, isActive: boolean): Promise<any> {
+    return this.request<any>(`/admin/users/${userId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ is_active: isActive }),
+    })
+  }
 }
 
 export const apiClient = new ApiClient()

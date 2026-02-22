@@ -42,11 +42,19 @@ def resend_confirmation(email: str) -> dict:
         (user_id, code, expires_at)
     )
 
+    # Get user name for email
+    cursor.execute("SELECT name FROM public.users WHERE id = %s", (user_id,))
+    name_row = cursor.fetchone()
+    user_name = name_row[0] if name_row else None
+
     conn.commit()
     cursor.close()
     conn.close()
 
-    return {"message": "Confirmation code resent", "confirmation_code": code}
+    from utils.email_sender import send_verification_email
+    send_verification_email(email, code, user_name)
+
+    return {"message": "인증코드가 이메일로 발송되었습니다"}
 
 
 def main(email: str) -> dict:

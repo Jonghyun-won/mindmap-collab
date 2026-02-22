@@ -65,6 +65,13 @@ from invites.delete import delete_invite
 from utils.auth_helper import verify_jwt_token
 from jose import JWTError
 
+# Import admin functions
+from admin.dashboard_stats import get_dashboard_stats
+from admin.list_users import list_users as admin_list_users
+from admin.update_user import update_user_role, update_user_status
+from admin.model import UpdateUserRoleRequest, UpdateUserStatusRequest
+from utils.admin_helper import require_admin
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Mind Map Collaboration API",
@@ -343,14 +350,11 @@ def duplicate_mindmap_endpoint(
     id: str,
     token: str = Depends(get_current_user)
 ):
-    """Duplicate a mindmap with all its Yjs state data.
-
-    Creates a new mindmap with title "{original_title} (복사본)".
-    User must be owner or collaborator to duplicate.
-    """
+    """Duplicate a mindmap with all its Yjs state data."""
     try:
         from conn import get_db_connection
         from utils.auth_helper import verify_jwt_token
+        import psycopg2
 
         payload = verify_jwt_token(token)
         user_id = payload["user_id"]
@@ -358,7 +362,6 @@ def duplicate_mindmap_endpoint(
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # Get original mindmap
         cur.execute(
             "SELECT id, title, owner_id, yjs_state FROM mindmaps WHERE id = %s",
             (id,)
@@ -371,7 +374,6 @@ def duplicate_mindmap_endpoint(
 
         original_id, original_title, owner_id, yjs_state = original
 
-        # Check access (owner or collaborator)
         is_owner = str(owner_id) == str(user_id)
         if not is_owner:
             cur.execute(
@@ -383,14 +385,18 @@ def duplicate_mindmap_endpoint(
                 conn.close()
                 raise HTTPException(status_code=403, detail="You do not have access to this mind map")
 
-        # Create duplicate
         new_title = f"{original_title} (복사본)"
+
+        # Properly handle BYTEA data - convert memoryview to bytes and wrap with psycopg2.Binary
+        yjs_binary = None
+        if yjs_state is not None:
+            yjs_binary = psycopg2.Binary(bytes(yjs_state))
 
         cur.execute(
             """INSERT INTO mindmaps (title, owner_id, yjs_state)
                VALUES (%s, %s, %s)
                RETURNING id, title, owner_id, created_at, updated_at""",
-            (new_title, user_id, yjs_state)
+            (new_title, user_id, yjs_binary)
         )
 
         row = cur.fetchone()
@@ -652,6 +658,61 @@ def accept_invite_endpoint(
         raise HTTPException(status_code=400, detail=error_msg)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Admin Routes
+# ============================================================================
+
+@app.get("/admin/stats")
+def admin_stats_endpoint(token: str = Depends(get_current_user)):
+    """Get admin dashboard statistics."""
+    require_admin(token)
+    return get_dashboard_stats()
+
+
+@app.get("/admin/users")
+def admin_users_endpoint(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: str = Query(None),
+    token: str = Depends(get_current_user)
+):
+    """List all users with mindmap counts."""
+    require_admin(token)
+    return admin_list_users(page, limit, search)
+
+
+@app.put("/admin/users/{user_id}/role")
+def admin_update_role_endpoint(
+    user_id: str,
+    request: UpdateUserRoleRequest,
+    token: str = Depends(get_current_user)
+):
+    """Update user role."""
+    payload = require_admin(token)
+    if payload["user_id"] == user_id and request.role != "admin":
+        raise HTTPException(status_code=400, detail="자기 자신의 관리자 권한을 해제할 수 없습니다")
+    try:
+        return update_user_role(user_id, request.role)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.put("/admin/users/{user_id}/status")
+def admin_update_status_endpoint(
+    user_id: str,
+    request: UpdateUserStatusRequest,
+    token: str = Depends(get_current_user)
+):
+    """Update user active status."""
+    payload = require_admin(token)
+    if payload["user_id"] == user_id and not request.is_active:
+        raise HTTPException(status_code=400, detail="자기 자신을 비활성화할 수 없습니다")
+    try:
+        return update_user_status(user_id, request.is_active)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 # ============================================================================

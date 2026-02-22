@@ -84,6 +84,10 @@ def register(request: RegisterRequest) -> RegisterResponse:
     cursor.close()
     conn.close()
 
+    # Send verification email
+    from utils.email_sender import send_verification_email
+    send_verification_email(request.email, code, request.name)
+
     # Build User object
     user = User(
         id=user_id,
@@ -98,7 +102,6 @@ def register(request: RegisterRequest) -> RegisterResponse:
     return RegisterResponse(
         message="Registration successful. Please verify your email.",
         user=user,
-        confirmation_code=code
     )
 
 
@@ -108,7 +111,6 @@ def main(email: str, password: str, name: str = None, team: str = None) -> dict:
 
     return {
         "message": response.message,
-        "confirmation_code": response.confirmation_code,
         "user": {
             "id": str(response.user.id),
             "email": response.user.email,

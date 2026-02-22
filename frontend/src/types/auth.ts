@@ -7,6 +7,7 @@ export interface User {
   name: string | null
   team: string | null
   email_verified: boolean
+  role: string
   created_at: string
 }
 
@@ -31,11 +32,10 @@ export interface LoginResponse {
   user: User
 }
 
-// RegisterResponse schema (register no longer returns JWT)
+// RegisterResponse schema
 export interface RegisterResponse {
   message: string
   user: User
-  confirmation_code: string
 }
 
 // ConfirmEmailRequest schema
@@ -52,5 +52,4 @@ export interface ResendConfirmationRequest {
 // ResendConfirmationResponse schema
 export interface ResendConfirmationResponse {
   message: string
-  confirmation_code: string
 }

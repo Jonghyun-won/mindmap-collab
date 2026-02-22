@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import MindMapEditor from './pages/MindMapEditor';
 import AcceptInvite from './pages/AcceptInvite';
+import AdminDashboard from './pages/AdminDashboard';
 
 function LoginRedirect() {
   const pendingInvite = localStorage.getItem('pending_invite');
@@ -47,6 +48,10 @@ function AppContent() {
         <Route
           path="/invite/:token"
           element={<AcceptInvite />}
+        />
+        <Route
+          path="/admin"
+          element={user && user.role === 'admin' ? <AdminDashboard /> : <Navigate to="/" />}
         />
       </Routes>
     </BrowserRouter>

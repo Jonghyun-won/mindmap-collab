@@ -71,6 +71,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
     reparentNode,
     toggleEdgeArrow,
     updateEdgeStyle,
+    applyAutoLayout,
     // Collaboration status
     isConnected,
     onlineUsers,
@@ -92,7 +93,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
   const { user } = useAuth()
 
   // ReactFlow instance for coordinate conversion
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, fitView } = useReactFlow()
 
   // Real-time presence (cursors)
   const { collaborators, updateCursor } = usePresence(provider, user?.name || user?.email || 'Anonymous')
@@ -422,6 +423,14 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
     }
   }, [selectedNode, deleteNode, recordChange])
 
+  // Handle auto layout
+  const handleAutoLayout = useCallback((direction: 'TB' | 'LR') => {
+    applyAutoLayout(direction)
+    setTimeout(() => {
+      fitView({ padding: 0.2, duration: 300 })
+    }, 50)
+  }, [applyAutoLayout, fitView])
+
   // Handle node click to open detail panel
   const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     setSelectedNodeForDetail(node.id)
@@ -576,6 +585,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
           onShareClick={() => setIsShareModalOpen(true)}
           onShowExport={() => setShowExport(true)}
           onShowHistory={() => setShowHistory(true)}
+          onAutoLayout={handleAutoLayout}
         />
       </div>
 

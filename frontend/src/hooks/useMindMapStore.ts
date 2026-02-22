@@ -11,6 +11,7 @@ import {
   MarkerType,
 } from 'reactflow'
 import { useYjsCollaboration } from './useYjsCollaboration'
+import { applyDagreLayout } from '@/lib/layout-algorithms'
 
 export interface MindMapNode extends Node {
   data: {
@@ -32,76 +33,6 @@ function getColorForLevel(level: number): string {
     '#9ca3af', // Level 4+: Gray
   ]
   return colors[Math.min(level, 4)]
-}
-
-// Calculate position for child nodes - Balanced tree layout (centered around parent)
-function getChildPosition(parentNode: MindMapNode, existingNodes: MindMapNode[], level: number) {
-  const baseX = parentNode.position.x
-  const baseY = parentNode.position.y
-
-  // Count existing children of this parent
-  const siblings = existingNodes.filter(n => n.data.parentId === parentNode.id)
-  const siblingCount = siblings.length
-
-  // Spacing scales based on level for better organization
-  const verticalSpacing = 180
-  const horizontalSpacing = level === 1 ? 400 : Math.max(250 - (level * 20), 150)
-
-  // Total children count including the new one being added
-  const totalChildren = siblingCount + 1
-
-  // Center all children around parent's X position
-  const startX = baseX - ((totalChildren - 1) * horizontalSpacing) / 2
-
-  // New node position (last index)
-  const newX = startX + siblingCount * horizontalSpacing
-
-  // Also reposition existing siblings to maintain balance
-  siblings.forEach((sibling, index) => {
-    sibling.position = {
-      x: startX + index * horizontalSpacing,
-      y: baseY + verticalSpacing,
-    }
-  })
-
-  return {
-    x: newX,
-    y: baseY + verticalSpacing
-  }
-}
-
-// Calculate position for sibling nodes (same level) - balanced around parent
-function getSiblingPosition(currentNode: MindMapNode, existingNodes: MindMapNode[], parentId?: string) {
-  const siblings = existingNodes.filter(
-    n => n.data.parentId === parentId && n.data.level === currentNode.data.level
-  )
-
-  const level = currentNode.data.level || 0
-  const horizontalSpacing = level === 1 ? 400 : Math.max(250 - (level * 20), 150)
-
-  // Find parent node to center around
-  const parentNode = parentId ? existingNodes.find(n => n.id === parentId) : null
-  const centerX = parentNode ? parentNode.position.x : currentNode.position.x
-
-  // Total siblings including the new one
-  const totalSiblings = siblings.length + 1
-
-  // Center all siblings around parent's X position
-  const startX = centerX - ((totalSiblings - 1) * horizontalSpacing) / 2
-
-  // Reposition existing siblings to maintain balance
-  siblings.forEach((sibling, index) => {
-    sibling.position = {
-      x: startX + index * horizontalSpacing,
-      y: sibling.position.y,
-    }
-  })
-
-  // New node gets the last position
-  return {
-    x: startX + siblings.length * horizontalSpacing,
-    y: currentNode.position.y
-  }
 }
 
 interface ClipboardData {
@@ -324,6 +255,14 @@ export function useMindMapStore(documentId?: string) {
     saveHistory()
     const newNodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
+    // Create edge first (needed for dagre)
+    const newEdge: Edge = {
+      id: `e-${parentId}-${newNodeId}`,
+      source: parentId,
+      target: newNodeId,
+      type: 'smoothstep',
+    }
+
     setNodes((nds) => {
       const parentNode = nds.find(n => n.id === parentId)
       if (!parentNode) return nds
@@ -333,49 +272,44 @@ export function useMindMapStore(documentId?: string) {
 
       // Check max depth (20 levels)
       if (newLevel >= 20) {
-        alert('Maximum depth of 20 levels reached!')
         return nds
       }
-
-      const position = getChildPosition(parentNode, nds, newLevel)
-      const color = getColorForLevel(newLevel)
 
       const newNode: MindMapNode = {
         id: newNodeId,
         type: 'custom',
+        position: { x: parentNode.position.x, y: parentNode.position.y + 100 }, // temporary
         data: {
           label: 'New Node',
-          color: color,
+          color: getColorForLevel(newLevel),
           level: newLevel,
           parentId: parentId,
         },
-        position,
-        selected: autoSelect, // Auto-select new node
+        selected: autoSelect,
       }
 
-      return [...nds, newNode]
+      const allNodes: MindMapNode[] = [
+        ...nds.map(n => ({ ...n, selected: autoSelect ? false : n.selected })),
+        newNode,
+      ]
+
+      // Get current edges + new edge for dagre computation
+      const allEdges = [...edges, newEdge]
+
+      // Find root node to anchor
+      const rootNode = allNodes.find(n => (n.data.level ?? 0) === 0)
+
+      return applyDagreLayout(allNodes, allEdges, {
+        direction: 'TB',
+        anchorNodeId: rootNode?.id,
+      })
     })
 
-    // Auto-connect to parent
-    setTimeout(() => {
-      setEdges((eds) => {
-        const edgeExists = eds.some(e => e.source === parentId && e.target === newNodeId)
-        if (!edgeExists) {
-          return [...eds, {
-            id: `e-${parentId}-${newNodeId}`,
-            source: parentId,
-            target: newNodeId,
-            type: 'smoothstep',
-            animated: false,
-          }]
-        }
-        return eds
-      })
-    }, 50)
+    // Also add the edge to edge state
+    setEdges((eds) => [...eds, newEdge])
 
-    // Return new node ID for selection
     return newNodeId
-  }, [saveHistory])
+  }, [saveHistory, edges, setNodes, setEdges])
 
   const addSiblingNode = useCallback((currentNodeId: string, autoSelect: boolean = true) => {
     saveHistory()
@@ -385,54 +319,50 @@ export function useMindMapStore(documentId?: string) {
       const currentNode = nds.find(n => n.id === currentNodeId)
       if (!currentNode) return nds
 
-      const level = currentNode.data.level || 0
       const parentId = currentNode.data.parentId
+      if (!parentId) return nds // Can't add sibling to root
 
-      const position = getSiblingPosition(currentNode, nds, parentId)
-      const color = getColorForLevel(level)
+      const level = currentNode.data.level || 0
 
       const newNode: MindMapNode = {
         id: newNodeId,
         type: 'custom',
+        position: { x: currentNode.position.x + 100, y: currentNode.position.y }, // temporary
         data: {
           label: 'New Node',
-          color: color,
+          color: getColorForLevel(level),
           level: level,
           parentId: parentId,
         },
-        position,
-        selected: autoSelect, // Auto-select new node
+        selected: autoSelect,
       }
 
-      return [...nds, newNode]
+      const newEdge: Edge = {
+        id: `e-${parentId}-${newNodeId}`,
+        source: parentId,
+        target: newNodeId,
+        type: 'smoothstep',
+      }
+
+      const allNodes: MindMapNode[] = [
+        ...nds.map(n => ({ ...n, selected: autoSelect ? false : n.selected })),
+        newNode,
+      ]
+
+      const allEdges = [...edges, newEdge]
+      const rootNode = allNodes.find(n => (n.data.level ?? 0) === 0)
+
+      // Also add edge
+      setEdges((eds) => [...eds, newEdge])
+
+      return applyDagreLayout(allNodes, allEdges, {
+        direction: 'TB',
+        anchorNodeId: rootNode?.id,
+      })
     })
 
-    // Only connect to parent if has parent (not siblings)
-    setTimeout(() => {
-      setNodes((nds) => {
-        const newNode = nds.find(n => n.id === newNodeId)
-        if (newNode?.data.parentId) {
-          setEdges((eds) => {
-            const edgeExists = eds.some(e => e.source === newNode.data.parentId && e.target === newNodeId)
-            if (!edgeExists) {
-              return [...eds, {
-                id: `e-${newNode.data.parentId}-${newNodeId}`,
-                source: newNode.data.parentId!,
-                target: newNodeId,
-                type: 'smoothstep',
-                animated: false,
-              }]
-            }
-            return eds
-          })
-        }
-        return nds
-      })
-    }, 50)
-
-    // Return new node ID for selection
     return newNodeId
-  }, [saveHistory])
+  }, [saveHistory, edges, setNodes, setEdges])
 
   const updateNodeLabel = useCallback((nodeId: string, label: string) => {
     setNodes((nds) =>
@@ -480,12 +410,6 @@ export function useMindMapStore(documentId?: string) {
     )
   }, [])
 
-  const deleteNode = useCallback((nodeId: string) => {
-    saveHistory()
-    setNodes((nds) => nds.filter((node) => node.id !== nodeId))
-    setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId))
-  }, [saveHistory])
-
   // Find all descendants of a node
   const findAllDescendants = useCallback((nodeId: string, nodesList: MindMapNode[]): string[] => {
     const children = nodesList.filter(n => n.data.parentId === nodeId)
@@ -495,6 +419,29 @@ export function useMindMapStore(documentId?: string) {
     })
     return descendants
   }, [])
+
+  const deleteNode = useCallback((nodeId: string) => {
+    saveHistory()
+
+    const descendantIds = findAllDescendants(nodeId, nodes)
+    const idsToRemove = new Set([nodeId, ...descendantIds])
+
+    const remainingNodes = nodes.filter(n => !idsToRemove.has(n.id))
+    const remainingEdges = edges.filter(e => !idsToRemove.has(e.source) && !idsToRemove.has(e.target))
+
+    // Re-layout remaining tree
+    const rootNode = remainingNodes.find(n => (n.data.level ?? 0) === 0)
+    if (rootNode && remainingNodes.length > 0) {
+      const repositioned = applyDagreLayout(remainingNodes, remainingEdges, {
+        direction: 'TB',
+        anchorNodeId: rootNode.id,
+      })
+      setNodes(repositioned)
+    } else {
+      setNodes(remainingNodes)
+    }
+    setEdges(remainingEdges)
+  }, [saveHistory, nodes, edges, findAllDescendants, setNodes, setEdges])
 
   // Move node with all descendants
   const moveNodeWithDescendants = useCallback((nodeId: string, deltaX: number, deltaY: number) => {
@@ -520,42 +467,79 @@ export function useMindMapStore(documentId?: string) {
   // Reparent node (change parent)
   const reparentNode = useCallback((nodeId: string, newParentId: string | undefined) => {
     saveHistory()
-    setNodes((nds) => {
-      return nds.map(node => {
-        if (node.id === nodeId) {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              parentId: newParentId,
-              level: newParentId ? ((nds.find(n => n.id === newParentId)?.data.level || 0) + 1) : 0,
-              color: newParentId ? getColorForLevel((nds.find(n => n.id === newParentId)?.data.level || 0) + 1) : getColorForLevel(0),
-            },
-          }
+
+    // Update node data (parentId, level, color) and also update descendants' levels
+    const updatedNodes = nodes.map(node => {
+      if (node.id === nodeId) {
+        const newLevel = newParentId ? ((nodes.find(n => n.id === newParentId)?.data.level || 0) + 1) : 0
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            parentId: newParentId,
+            level: newLevel,
+            color: getColorForLevel(newLevel),
+          },
         }
-        return node
-      })
+      }
+      return node
     })
 
-    // Update edges - remove old parent connection, add new one
-    setEdges((eds) => {
-      // Remove old parent connection
-      const filtered = eds.filter(e => e.target !== nodeId)
+    // Recursively update descendant levels
+    const updateDescendantLevels = (nds: MindMapNode[], parentNodeId: string, parentLevel: number): MindMapNode[] => {
+      return nds.map(n => {
+        if (n.data.parentId === parentNodeId) {
+          const newLevel = parentLevel + 1
+          return { ...n, data: { ...n.data, level: newLevel, color: getColorForLevel(newLevel) } }
+        }
+        return n
+      })
+    }
 
-      // Add new parent connection if parent exists
-      if (newParentId) {
-        return [...filtered, {
+    const reparentedNode = updatedNodes.find(n => n.id === nodeId)
+    const reparentedLevel = reparentedNode?.data.level ?? 0
+    const descendantIds = findAllDescendants(nodeId, updatedNodes)
+
+    let finalNodes = [...updatedNodes]
+    // Update descendants level by level
+    const queue = [{ id: nodeId, level: reparentedLevel }]
+    while (queue.length > 0) {
+      const { id: currentId, level: currentLevel } = queue.shift()!
+      finalNodes = updateDescendantLevels(finalNodes, currentId, currentLevel)
+      // Find children of currentId for next iteration
+      const children = finalNodes.filter(n => n.data.parentId === currentId)
+      children.forEach(child => {
+        if (descendantIds.includes(child.id)) {
+          queue.push({ id: child.id, level: currentLevel + 1 })
+        }
+      })
+    }
+
+    // Update edges - remove old parent connection, add new one
+    const filteredEdges = edges.filter(e => e.target !== nodeId)
+    const updatedEdges = newParentId
+      ? [...filteredEdges, {
           id: `e-${newParentId}-${nodeId}`,
           source: newParentId,
           target: nodeId,
           type: 'smoothstep',
           animated: false,
         }]
-      }
+      : filteredEdges
 
-      return filtered
-    })
-  }, [saveHistory])
+    // Re-layout with dagre
+    const rootNode = finalNodes.find(n => (n.data.level ?? 0) === 0)
+    if (rootNode && finalNodes.length > 0) {
+      const repositioned = applyDagreLayout(finalNodes, updatedEdges, {
+        direction: 'TB',
+        anchorNodeId: rootNode.id,
+      })
+      setNodes(repositioned)
+    } else {
+      setNodes(finalNodes)
+    }
+    setEdges(updatedEdges)
+  }, [saveHistory, nodes, edges, findAllDescendants, setNodes, setEdges])
 
   const copyNode = useCallback((nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId)
@@ -613,17 +597,12 @@ export function useMindMapStore(documentId?: string) {
 
       const rootNewId = idMap.get(clipboardData.rootNode.id)!
 
-      // Calculate root position
-      let rootPosition = { x: 100, y: 100 }
+      // Determine target level
       let targetLevel = 0
       if (targetNodeId) {
         const targetNode = nodes.find(n => n.id === targetNodeId)
         if (targetNode) {
           targetLevel = (targetNode.data?.level ?? 0)
-          rootPosition = {
-            x: targetNode.position.x + 250,
-            y: targetNode.position.y + 50,
-          }
         }
       }
 
@@ -632,10 +611,7 @@ export function useMindMapStore(documentId?: string) {
       const newRootLevel = targetNodeId ? targetLevel + 1 : originalRootLevel
       const levelDelta = newRootLevel - originalRootLevel
 
-      // Position offset from original root
-      const originalRootPos = clipboardData.rootNode.position
-
-      // Remap nodes
+      // Remap nodes (temporary positions - dagre will handle layout)
       const newNodes: MindMapNode[] = allSourceNodes.map((n: any) => {
         const isRoot = n.id === clipboardData!.rootNode.id
         const newLevel = (n.data?.level ?? 0) + levelDelta
@@ -652,12 +628,7 @@ export function useMindMapStore(documentId?: string) {
             level: newLevel,
             color: getColorForLevel(newLevel),
           },
-          position: isRoot
-            ? rootPosition
-            : {
-                x: rootPosition.x + (n.position.x - originalRootPos.x),
-                y: rootPosition.y + (n.position.y - originalRootPos.y),
-              },
+          position: { x: 0, y: 0 }, // temporary - dagre will reposition
           selected: false,
           dragging: false,
         }
@@ -683,55 +654,58 @@ export function useMindMapStore(documentId?: string) {
         })
       }
 
-      setNodes(nds => [...nds, ...newNodes])
-      setEdges(eds => [...eds, ...newEdges])
+      // Combine with existing and run dagre layout
+      const allNodes = [...nodes, ...newNodes]
+      const allEdges = [...edges, ...newEdges]
+      const rootNode = allNodes.find(n => (n.data.level ?? 0) === 0)
+      const repositioned = applyDagreLayout(allNodes, allEdges, {
+        direction: 'TB',
+        anchorNodeId: rootNode?.id,
+      })
+      setNodes(repositioned)
+      setEdges(allEdges)
     } else if (clipboard) {
       // Fallback: single-node paste from in-memory clipboard
       const newNodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
       if (targetNodeId) {
         // Paste as child of selected node
-        setNodes((nds) => {
-          const targetNode = nds.find(n => n.id === targetNodeId)
-          if (!targetNode) return nds
+        const targetNode = nodes.find(n => n.id === targetNodeId)
+        if (!targetNode) return
 
-          const newLevel = (targetNode.data.level || 0) + 1
+        const newLevel = (targetNode.data.level || 0) + 1
+        if (newLevel >= 20) return
 
-          if (newLevel >= 20) {
-            alert('Maximum depth of 20 levels reached!')
-            return nds
-          }
+        const newNode: MindMapNode = {
+          id: newNodeId,
+          type: 'custom',
+          data: {
+            ...clipboard.data,
+            level: newLevel,
+            parentId: targetNodeId,
+            color: getColorForLevel(newLevel),
+          },
+          position: { x: 0, y: 0 }, // temporary
+        }
 
-          const position = getChildPosition(targetNode, nds, newLevel)
+        const newEdge: Edge = {
+          id: `e-${targetNodeId}-${newNodeId}`,
+          source: targetNodeId,
+          target: newNodeId,
+          type: 'smoothstep',
+        }
 
-          const newNode: MindMapNode = {
-            id: newNodeId,
-            type: 'custom',
-            data: {
-              ...clipboard.data,
-              level: newLevel,
-              parentId: targetNodeId,
-            },
-            position,
-          }
-
-          return [...nds, newNode]
+        const allNodes = [...nodes, newNode]
+        const allEdges = [...edges, newEdge]
+        const rootNode = allNodes.find(n => (n.data.level ?? 0) === 0)
+        const repositioned = applyDagreLayout(allNodes, allEdges, {
+          direction: 'TB',
+          anchorNodeId: rootNode?.id,
         })
-
-        // Connect to parent
-        setTimeout(() => {
-          setEdges((eds) => {
-            return [...eds, {
-              id: `e-${targetNodeId}-${newNodeId}`,
-              source: targetNodeId,
-              target: newNodeId,
-              type: 'smoothstep',
-              animated: false,
-            }]
-          })
-        }, 50)
+        setNodes(repositioned)
+        setEdges(allEdges)
       } else {
-        // Paste at same level
+        // Paste at same level (no parent connection, no layout needed)
         setNodes((nds) => {
           const newNode: MindMapNode = {
             id: newNodeId,
@@ -757,6 +731,14 @@ export function useMindMapStore(documentId?: string) {
     setHistory((prev) => prev.slice(0, -1))
   }, [history])
 
+  const applyAutoLayout = useCallback((direction: 'TB' | 'LR' = 'TB') => {
+    saveHistory()
+    setNodes((nds) => {
+      const currentEdges = edges
+      return applyDagreLayout(nds, currentEdges, { direction })
+    })
+  }, [edges, saveHistory])
+
   return {
     nodes,
     edges,
@@ -779,6 +761,7 @@ export function useMindMapStore(documentId?: string) {
     reparentNode,
     toggleEdgeArrow,
     updateEdgeStyle,
+    applyAutoLayout,
     // Collaboration status
     isConnected,
     onlineUsers,

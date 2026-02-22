@@ -1,5 +1,5 @@
-import { Plus, Save, Trash2, Palette, Info, Users, ArrowLeft, Share2, Clock, Download } from 'lucide-react'
-import { useState } from 'react'
+import { Plus, Save, Trash2, Palette, Info, Users, ArrowLeft, Share2, Clock, Download, LayoutGrid, ArrowDown, ArrowRight } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 interface EditorToolbarProps {
@@ -16,6 +16,7 @@ interface EditorToolbarProps {
   onShareClick?: () => void
   onShowHistory?: () => void
   onShowExport?: () => void
+  onAutoLayout?: (direction: 'TB' | 'LR') => void
   readOnly?: boolean
 }
 
@@ -44,11 +45,14 @@ export default function EditorToolbar({
   onShareClick,
   onShowHistory,
   onShowExport,
+  onAutoLayout,
   readOnly = false,
 }: EditorToolbarProps) {
   const navigate = useNavigate()
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false)
+  const layoutMenuRef = useRef<HTMLDivElement>(null)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editedTitle, setEditedTitle] = useState(mindMapTitle)
 
@@ -67,6 +71,18 @@ export default function EditorToolbar({
       setIsEditingTitle(false)
     }
   }
+
+  // Close layout menu when clicking outside
+  useEffect(() => {
+    if (!showLayoutMenu) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (layoutMenuRef.current && !layoutMenuRef.current.contains(e.target as HTMLElement)) {
+        setShowLayoutMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showLayoutMenu])
 
   return (
     <>
@@ -218,6 +234,46 @@ export default function EditorToolbar({
           >
             <Download className="w-5 h-5" />
           </button>
+        )}
+
+        {/* Auto Layout button */}
+        {!readOnly && (
+          <>
+            <div className="w-px h-6 bg-gray-200" />
+            <div className="relative" ref={layoutMenuRef}>
+              <button
+                onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+                className="p-2 rounded-md hover:bg-gray-100 transition-colors text-gray-700"
+                title="자동 정렬"
+              >
+                <LayoutGrid className="w-5 h-5" />
+              </button>
+              {showLayoutMenu && (
+                <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[160px] z-50">
+                  <button
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+                    onClick={() => {
+                      onAutoLayout?.('TB')
+                      setShowLayoutMenu(false)
+                    }}
+                  >
+                    <ArrowDown className="w-4 h-4" />
+                    트리 (위→아래)
+                  </button>
+                  <button
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+                    onClick={() => {
+                      onAutoLayout?.('LR')
+                      setShowLayoutMenu(false)
+                    }}
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    트리 (왼→오른쪽)
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {/* Save button */}

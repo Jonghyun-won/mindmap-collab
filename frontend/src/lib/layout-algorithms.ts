@@ -1,112 +1,206 @@
-import { MindMapNode } from "@/types/mindmap"
+import dagre from 'dagre'
+import type { Node, Edge } from 'reactflow'
+
+// Layout types
+export type LayoutDirection = 'TB' | 'LR' // Top-Bottom, Left-Right
 
 export interface LayoutOptions {
-  spacingX?: number
-  spacingY?: number
+  direction: LayoutDirection
+  spacingX?: number // horizontal gap between nodes (default: 80)
+  spacingY?: number // vertical gap between levels (default: 100)
+  anchorNodeId?: string // if set, this node stays at its original position after layout
 }
 
-/**
- * Tree layout algorithm (client-side)
- * Matches backend layout_algorithm.py logic
- */
-export function applyTreeLayout(
-  nodes: MindMapNode[],
-  options: LayoutOptions = {}
-): MindMapNode[] {
-  const { spacingX = 250, spacingY = 150 } = options
+// Estimate node dimensions based on level and content
+export function estimateNodeDimensions(node: Node): { width: number; height: number } {
+  const level = node.data?.level ?? 0
+  const label = node.data?.label ?? ''
 
-  if (!nodes || nodes.length === 0) return []
-
-  // Convert to map for quick lookup
-  const nodeMap = new Map(nodes.map((n) => [n.id, { ...n }]))
-
-  // Find root node
-  let root = nodes.find((n) => !n.parentId)
-  if (!root) {
-    root = nodes[0]
-    root.parentId = null
-    root.level = 0
+  // Base min dimensions from CustomNode.tsx
+  const baseDimensions: Record<number, { width: number; height: number }> = {
+    0: { width: 200, height: 80 },
+    1: { width: 160, height: 60 },
+    2: { width: 120, height: 50 },
   }
+  const base = baseDimensions[level] || { width: 100, height: 40 }
 
-  // Build parent-child relationships
-  const childrenMap = new Map<string, MindMapNode[]>()
+  // Estimate width based on label length
+  const charWidth = level === 0 ? 18 : level === 1 ? 14 : level === 2 ? 11 : 10
+  const padding = level === 0 ? 96 : level === 1 ? 64 : 48
+  const labelWidth = label.length * charWidth + padding
+
+  // Add media height if present
+  const mediaHeight = node.data?.media ? 120 : 0
+
+  return {
+    width: Math.min(Math.max(base.width, labelWidth), 400),
+    height: base.height + mediaHeight,
+  }
+}
+
+// Main layout function using dagre
+export function applyDagreLayout(
+  nodes: Node[],
+  edges: Edge[],
+  options: LayoutOptions = { direction: 'TB' }
+): Node[] {
+  if (nodes.length === 0) return nodes
+
+  const { direction, spacingX = 80, spacingY = 100 } = options
+
+  const g = new dagre.graphlib.Graph()
+  g.setDefaultEdgeLabel(() => ({}))
+  g.setGraph({
+    rankdir: direction,
+    nodesep: spacingX,
+    ranksep: spacingY,
+    marginx: 50,
+    marginy: 50,
+  })
+
+  // Add nodes with their estimated dimensions
   nodes.forEach((node) => {
-    if (node.parentId) {
-      if (!childrenMap.has(node.parentId)) {
-        childrenMap.set(node.parentId, [])
-      }
-      childrenMap.get(node.parentId)!.push(nodeMap.get(node.id)!)
+    const dims = estimateNodeDimensions(node)
+    g.setNode(node.id, { width: dims.width, height: dims.height })
+  })
+
+  // Add edges
+  edges.forEach((edge) => {
+    if (g.hasNode(edge.source) && g.hasNode(edge.target)) {
+      g.setEdge(edge.source, edge.target)
     }
   })
 
-  // Recursive layout function
-  function layoutSubtree(
-    nodeId: string,
-    x: number,
-    y: number
-  ): { width: number; bounds: { minX: number; maxX: number } } {
-    const node = nodeMap.get(nodeId)
-    if (!node) return { width: 0, bounds: { minX: 0, maxX: 0 } }
+  // Run dagre layout
+  dagre.layout(g)
 
-    const children = childrenMap.get(nodeId) || []
-
-    if (children.length === 0) {
-      // Leaf node
-      node.position = { x, y }
-      return { width: spacingX, bounds: { minX: x, maxX: x } }
-    }
-
-    // Layout children recursively
-    let currentX = x
-    let minX = Infinity
-    let maxX = -Infinity
-    const childResults: Array<{ id: string; centerX: number }> = []
-
-    children.forEach((child) => {
-      const result = layoutSubtree(child.id, currentX, y + spacingY)
-      const childNode = nodeMap.get(child.id)!
-      const childCenterX = childNode.position.x
-
-      childResults.push({ id: child.id, centerX: childCenterX })
-
-      minX = Math.min(minX, result.bounds.minX)
-      maxX = Math.max(maxX, result.bounds.maxX)
-      currentX += result.width
-    })
-
-    // Position parent at the center of children
-    const parentX = (minX + maxX) / 2
-    node.position = { x: parentX, y }
+  // Apply computed positions (dagre uses center coords, ReactFlow uses top-left)
+  let result = nodes.map((node) => {
+    const dagreNode = g.node(node.id)
+    if (!dagreNode) return node
 
     return {
-      width: currentX - x,
-      bounds: { minX: Math.min(minX, parentX), maxX: Math.max(maxX, parentX) },
+      ...node,
+      position: {
+        x: dagreNode.x - dagreNode.width / 2,
+        y: dagreNode.y - dagreNode.height / 2,
+      },
+    }
+  })
+
+  // If anchorNodeId is set, shift all nodes so the anchor stays at its original position
+  if (options.anchorNodeId) {
+    const originalAnchor = nodes.find(n => n.id === options.anchorNodeId)
+    const layoutedAnchor = result.find(n => n.id === options.anchorNodeId)
+    if (originalAnchor && layoutedAnchor) {
+      const offsetX = originalAnchor.position.x - layoutedAnchor.position.x
+      const offsetY = originalAnchor.position.y - layoutedAnchor.position.y
+      result = result.map(n => ({
+        ...n,
+        position: {
+          x: n.position.x + offsetX,
+          y: n.position.y + offsetY,
+        },
+      }))
     }
   }
 
-  // Start layout from root
-  layoutSubtree(root.id, 0, 0)
-
-  // Center the entire tree
-  const allX = Array.from(nodeMap.values()).map((n) => n.position.x)
-  const minX = Math.min(...allX)
-  const maxX = Math.max(...allX)
-  const offsetX = -(minX + maxX) / 2
-
-  nodeMap.forEach((node) => {
-    node.position.x += offsetX
-  })
-
-  return Array.from(nodeMap.values())
+  return result
 }
 
-/**
- * Future expansion: Radial, Org-Chart, etc.
- */
-export function applyRadialLayout(
-  nodes: MindMapNode[],
-  _options: LayoutOptions = {}
-): MindMapNode[] {
-  // Phase 6 implementation
-  return nodes
+// Convenience functions for specific layout types
+export function applyTreeLayout(nodes: Node[], edges: Edge[]): Node[] {
+  return applyDagreLayout(nodes, edges, { direction: 'TB', spacingX: 80, spacingY: 100 })
+}
+
+export function applyHorizontalLayout(nodes: Node[], edges: Edge[]): Node[] {
+  return applyDagreLayout(nodes, edges, { direction: 'LR', spacingX: 100, spacingY: 60 })
+}
+
+// Rebalance only a subtree (for incremental layout after adding a node)
+export function rebalanceSubtree(
+  allNodes: Node[],
+  allEdges: Edge[],
+  rootId: string,
+): Node[] {
+  // Find all nodes in the subtree
+  const subtreeIds = new Set<string>()
+  const queue = [rootId]
+  while (queue.length > 0) {
+    const id = queue.shift()!
+    subtreeIds.add(id)
+    // Find children via edges
+    allEdges.forEach(e => {
+      if (e.source === id && !subtreeIds.has(e.target)) {
+        queue.push(e.target)
+      }
+    })
+  }
+
+  // Also find children via parentId data
+  allNodes.forEach(n => {
+    if (n.data?.parentId && subtreeIds.has(n.data.parentId)) {
+      subtreeIds.add(n.id)
+    }
+  })
+
+  const subtreeNodes = allNodes.filter(n => subtreeIds.has(n.id))
+  const subtreeEdges = allEdges.filter(e => subtreeIds.has(e.source) && subtreeIds.has(e.target))
+
+  if (subtreeNodes.length <= 1) return allNodes
+
+  // Get root position to anchor the subtree
+  const rootNode = allNodes.find(n => n.id === rootId)
+  if (!rootNode) return allNodes
+
+  const rootPos = { ...rootNode.position }
+
+  // Layout the subtree
+  const layoutedSubtree = applyDagreLayout(subtreeNodes, subtreeEdges, { direction: 'TB', spacingX: 80, spacingY: 100 })
+
+  // Find the root in layouted result and calculate offset
+  const layoutedRoot = layoutedSubtree.find(n => n.id === rootId)
+  if (!layoutedRoot) return allNodes
+
+  const offsetX = rootPos.x - layoutedRoot.position.x
+  const offsetY = rootPos.y - layoutedRoot.position.y
+
+  // Apply offset so root stays in place, children reposition relative to it
+  const layoutedMap = new Map<string, { x: number; y: number }>()
+  layoutedSubtree.forEach(n => {
+    layoutedMap.set(n.id, {
+      x: n.position.x + offsetX,
+      y: n.position.y + offsetY,
+    })
+  })
+
+  // Merge back
+  return allNodes.map(n => {
+    const newPos = layoutedMap.get(n.id)
+    if (newPos) {
+      return { ...n, position: newPos }
+    }
+    return n
+  })
+}
+
+// Detect overlapping node pairs based on their positions and estimated dimensions
+export function detectOverlaps(nodes: Node[]): Array<[string, string]> {
+  const overlaps: Array<[string, string]> = []
+  for (let i = 0; i < nodes.length; i++) {
+    const a = nodes[i]
+    const aDims = estimateNodeDimensions(a)
+    for (let j = i + 1; j < nodes.length; j++) {
+      const b = nodes[j]
+      const bDims = estimateNodeDimensions(b)
+      const overlapX = a.position.x < b.position.x + bDims.width &&
+                        a.position.x + aDims.width > b.position.x
+      const overlapY = a.position.y < b.position.y + bDims.height &&
+                        a.position.y + aDims.height > b.position.y
+      if (overlapX && overlapY) {
+        overlaps.push([a.id, b.id])
+      }
+    }
+  }
+  return overlaps
 }

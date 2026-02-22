@@ -112,7 +112,8 @@ export interface MindMapEdge {
   label?: string | null
 }
 
-export type LayoutAlgorithm = "tree" | "manual"
+export type LayoutAlgorithm = "tree" | "horizontal" | "manual"
+export type LayoutDirection = 'TB' | 'LR'
 export type EdgeType = "bezier" | "straight" | "step" | "smoothstep"
 
 export interface MindMapSettings {

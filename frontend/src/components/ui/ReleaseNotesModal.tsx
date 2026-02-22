@@ -59,6 +59,7 @@ export default function ReleaseNotesModal() {
                 'dagre 기반 자동 레이아웃 엔진 도입 (노드 겹침 완전 해결)',
                 '자동 정렬 버튼 추가: 트리(위→아래) / 트리(왼→오른쪽) 선택 가능',
                 '앱 내 릴리즈 노트 확인 기능 추가',
+                '하위 노드 숨김 시 상위 노드에 접힘 표시 아이콘 추가',
               ]}
             />
             <Category
@@ -78,6 +79,7 @@ export default function ReleaseNotesModal() {
                 '형제 노드 재배치 시 React 불변 상태 업데이트 누락 수정',
                 '노드 삭제 후 빈 공간이 자동으로 메워지지 않던 문제 해결',
                 '상위 노드 삭제 시 하위 노드가 함께 삭제되지 않던 문제 해결',
+                'PNG/SVG/PDF 내보내기 시 연결선이 표시되지 않던 문제 해결 (DOM 직접 변환 방식 적용)',
               ]}
             />
           </Section>

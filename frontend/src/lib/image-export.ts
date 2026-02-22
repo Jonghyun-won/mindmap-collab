@@ -26,22 +26,66 @@ const filterNodes = (node: HTMLElement): boolean => {
     !node.classList.contains('react-flow__attribution')
 }
 
-export async function exportToPNG(nodes: Node[], filename: string = 'mindmap.png'): Promise<void> {
-  const viewport = getViewport()
+/**
+ * Temporarily applies the export transform directly to the viewport DOM element,
+ * captures an image, then restores the original styles.
+ * This ensures SVG edges are properly positioned during capture,
+ * unlike the `style` option in html-to-image which doesn't propagate to nested SVGs.
+ */
+async function captureWithDOMTransform<T>(
+  viewport: HTMLElement,
+  nodes: Node[],
+  captureFn: (viewport: HTMLElement, options: Record<string, unknown>) => Promise<T>,
+  extraOptions: Record<string, unknown> = {},
+): Promise<T> {
   const { x, y, zoom } = computeExportTransform(nodes)
 
-  const dataUrl = await toPng(viewport, {
+  // Save original inline styles
+  const originalTransform = viewport.style.transform
+  const originalWidth = viewport.style.width
+  const originalHeight = viewport.style.height
+
+  // Directly modify the viewport DOM for capture
+  viewport.style.transform = `translate(${x}px, ${y}px) scale(${zoom})`
+  viewport.style.width = `${IMAGE_WIDTH}px`
+  viewport.style.height = `${IMAGE_HEIGHT}px`
+
+  // Wait a frame for the DOM to update
+  await new Promise(resolve => requestAnimationFrame(resolve))
+
+  const options: Record<string, unknown> = {
     backgroundColor: '#ffffff',
-    pixelRatio: 2,
     width: IMAGE_WIDTH,
     height: IMAGE_HEIGHT,
-    style: {
-      width: `${IMAGE_WIDTH}px`,
-      height: `${IMAGE_HEIGHT}px`,
-      transform: `translate(${x}px, ${y}px) scale(${zoom})`,
-    },
     filter: filterNodes,
-  })
+    cacheBust: true,
+    skipFonts: true,
+    ...extraOptions,
+  }
+
+  try {
+    // First call to warm up (fonts/images get cached)
+    await captureFn(viewport, options).catch(() => {})
+    // Second call produces correct output
+    const result = await captureFn(viewport, options)
+    return result
+  } finally {
+    // Always restore original styles
+    viewport.style.transform = originalTransform
+    viewport.style.width = originalWidth
+    viewport.style.height = originalHeight
+  }
+}
+
+export async function exportToPNG(nodes: Node[], filename: string = 'mindmap.png'): Promise<void> {
+  const viewport = getViewport()
+
+  const dataUrl = await captureWithDOMTransform(
+    viewport,
+    nodes,
+    (el, opts) => toPng(el, opts),
+    { pixelRatio: 2 },
+  )
 
   const link = document.createElement('a')
   link.download = filename
@@ -51,19 +95,12 @@ export async function exportToPNG(nodes: Node[], filename: string = 'mindmap.png
 
 export async function exportToSVG(nodes: Node[], filename: string = 'mindmap.svg'): Promise<void> {
   const viewport = getViewport()
-  const { x, y, zoom } = computeExportTransform(nodes)
 
-  const dataUrl = await toSvg(viewport, {
-    backgroundColor: '#ffffff',
-    width: IMAGE_WIDTH,
-    height: IMAGE_HEIGHT,
-    style: {
-      width: `${IMAGE_WIDTH}px`,
-      height: `${IMAGE_HEIGHT}px`,
-      transform: `translate(${x}px, ${y}px) scale(${zoom})`,
-    },
-    filter: filterNodes,
-  })
+  const dataUrl = await captureWithDOMTransform(
+    viewport,
+    nodes,
+    (el, opts) => toSvg(el, opts),
+  )
 
   const link = document.createElement('a')
   link.download = filename
@@ -73,20 +110,13 @@ export async function exportToSVG(nodes: Node[], filename: string = 'mindmap.svg
 
 export async function exportToPDF(nodes: Node[], filename: string = 'mindmap.pdf', title?: string): Promise<void> {
   const viewport = getViewport()
-  const { x, y, zoom } = computeExportTransform(nodes)
 
-  const dataUrl = await toPng(viewport, {
-    backgroundColor: '#ffffff',
-    pixelRatio: 2,
-    width: IMAGE_WIDTH,
-    height: IMAGE_HEIGHT,
-    style: {
-      width: `${IMAGE_WIDTH}px`,
-      height: `${IMAGE_HEIGHT}px`,
-      transform: `translate(${x}px, ${y}px) scale(${zoom})`,
-    },
-    filter: filterNodes,
-  })
+  const dataUrl = await captureWithDOMTransform(
+    viewport,
+    nodes,
+    (el, opts) => toPng(el, opts),
+    { pixelRatio: 2 },
+  )
 
   const img = new Image()
   img.src = dataUrl

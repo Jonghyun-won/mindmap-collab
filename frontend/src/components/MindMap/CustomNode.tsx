@@ -1,5 +1,6 @@
 import { memo, useState, useEffect, useRef } from 'react'
 import { Handle, Position, NodeProps } from 'reactflow'
+import { ChevronsDown } from 'lucide-react'
 
 interface CustomNodeData {
   label: string
@@ -7,6 +8,7 @@ interface CustomNodeData {
   level?: number
   parentId?: string
   borderColor?: string
+  collapsed?: boolean
   media?: {
     type: 'image' | 'video'
     url: string
@@ -233,6 +235,13 @@ function CustomNode({ data, id, selected }: NodeProps<CustomNodeData>) {
           }}
         />
       </div>
+
+      {/* Collapsed children indicator */}
+      {data.collapsed && (
+        <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-2 py-0.5 bg-gray-100 border border-gray-300 rounded-full text-[10px] text-gray-500 shadow-sm">
+          <ChevronsDown className="w-3 h-3" />
+        </div>
+      )}
     </div>
   )
 }

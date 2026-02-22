@@ -13,6 +13,7 @@ export default function Dashboard() {
   const [creating, setCreating] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
+  const [duplicating, setDuplicating] = useState<string | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -60,12 +61,26 @@ export default function Dashboard() {
 
   const duplicateMindMap = async (id: string, event: React.MouseEvent) => {
     event.stopPropagation()
+    if (duplicating) return
+
+    setDuplicating(id)
     try {
+      // Step 1: Create new mindmap record in backend
       const newMindMap = await apiClient.duplicateMindMap(id)
+
+      // Step 2: Copy localStorage data from source to new mindmap
+      const sourceData = localStorage.getItem(`mindmap_${id}`)
+      if (sourceData) {
+        localStorage.setItem(`mindmap_${newMindMap.id}`, sourceData)
+      }
+
+      // Step 3: Update list
       setMindMaps([newMindMap, ...mindMaps])
     } catch (error) {
       console.error('Error duplicating mind map:', error)
       alert('마인드맵 복제에 실패했습니다')
+    } finally {
+      setDuplicating(null)
     }
   }
 
@@ -209,10 +224,15 @@ export default function Dashboard() {
                   </button>
                   <button
                     onClick={(e) => duplicateMindMap(mindMap.id, e)}
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                    disabled={duplicating === mindMap.id}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-50"
                     title="복제"
                   >
-                    <Copy className="w-4 h-4" />
+                    {duplicating === mindMap.id ? (
+                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
                   </button>
                   <button
                     onClick={(e) => deleteMindMap(mindMap.id, mindMap.title, e)}

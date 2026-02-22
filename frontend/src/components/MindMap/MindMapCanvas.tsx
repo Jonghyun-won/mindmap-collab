@@ -164,7 +164,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
     if (!node) return
 
     const newCollapsed = !node.data.collapsed
-    const childrenIds = findAllDescendants(nodeId, nodes)
+    const childrenIds = findAllDescendants(nodeId, nodes, edges)
 
     setNodes((nds) =>
       nds.map((n) => {
@@ -188,7 +188,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
         return edge
       })
     )
-  }, [nodes, findAllDescendants, setNodes, setEdges])
+  }, [nodes, edges, findAllDescendants, setNodes, setEdges])
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -475,13 +475,13 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
 
         if (selectedNodes.length > 1 && selectedNodes.includes(node.id)) {
           selectedNodes.forEach(selectedId => {
-            const descendants = findAllDescendants(selectedId, nodes)
+            const descendants = findAllDescendants(selectedId, nodes, edges)
             allDescendants = [...allDescendants, ...descendants]
           })
           allDescendants = [...new Set(allDescendants)]
           allDescendants = allDescendants.filter(id => !selectedNodes.includes(id))
         } else {
-          allDescendants = findAllDescendants(node.id, nodes)
+          allDescendants = findAllDescendants(node.id, nodes, edges)
         }
 
         dragStateRef.current = {
@@ -517,7 +517,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
     } catch (error) {
       console.error('Error in handleNodeDrag:', error)
     }
-  }, [nodes, selectedNodes, findAllDescendants, setNodes])
+  }, [nodes, edges, selectedNodes, findAllDescendants, setNodes])
 
   // Handle node drag stop
   const handleNodeDragStop = useCallback((_event: any, node: any) => {
@@ -539,7 +539,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
 
           // Collect all descendants of all selected nodes
           selectedNodes.forEach((selectedId: string) => {
-            const descendants = findAllDescendants(selectedId, nodes)
+            const descendants = findAllDescendants(selectedId, nodes, edges)
             allDescendants = [...allDescendants, ...descendants]
           })
 
@@ -555,7 +555,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
           }
         } else {
           // Single node reparenting (original logic)
-          const descendants = findAllDescendants(node.id, nodes)
+          const descendants = findAllDescendants(node.id, nodes, edges)
           if (!descendants.includes(droppedOnNode.id) && droppedOnNode.id !== node.id) {
             reparentNode(node.id, droppedOnNode.id)
           }
@@ -564,7 +564,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
     } catch (error) {
       console.error('Error in handleNodeDragStop:', error)
     }
-  }, [nodes, selectedNodes, findAllDescendants, reparentNode])
+  }, [nodes, edges, selectedNodes, findAllDescendants, reparentNode])
 
   return (
     <div className="w-full h-full relative bg-white flex">

@@ -234,7 +234,30 @@ export function useMindMapStore(documentId?: string) {
   )
 
   const onConnect = useCallback(
-    (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
+    (connection: Connection) => {
+      setEdges((eds) => addEdge({ ...connection, type: 'smoothstep' }, eds))
+      // Also set parentId on the target node so findAllDescendants works correctly
+      if (connection.source && connection.target) {
+        const sourceId = connection.source
+        const targetId = connection.target
+        setNodes((nds) => nds.map(n => {
+          if (n.id === targetId) {
+            const sourceNode = nds.find(s => s.id === sourceId)
+            const newLevel = (sourceNode?.data.level ?? 0) + 1
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                parentId: sourceId,
+                level: newLevel,
+                color: getColorForLevel(newLevel),
+              },
+            }
+          }
+          return n
+        }))
+      }
+    },
     []
   )
 
@@ -410,20 +433,30 @@ export function useMindMapStore(documentId?: string) {
     )
   }, [])
 
-  // Find all descendants of a node
-  const findAllDescendants = useCallback((nodeId: string, nodesList: MindMapNode[]): string[] => {
-    const children = nodesList.filter(n => n.data.parentId === nodeId)
-    let descendants = children.map(c => c.id)
-    children.forEach(child => {
-      descendants = [...descendants, ...findAllDescendants(child.id, nodesList)]
+  // Find all descendants of a node (checks both parentId data and edges)
+  const findAllDescendants = useCallback((nodeId: string, nodesList: MindMapNode[], edgesList?: Edge[]): string[] => {
+    // Find children via parentId data
+    const childrenByParentId = nodesList.filter(n => n.data.parentId === nodeId).map(c => c.id)
+
+    // Find children via edges (source -> target)
+    const childrenByEdges = edgesList
+      ? edgesList.filter(e => e.source === nodeId).map(e => e.target)
+      : []
+
+    // Combine and deduplicate
+    const childIds = [...new Set([...childrenByParentId, ...childrenByEdges])]
+
+    let descendants = [...childIds]
+    childIds.forEach(childId => {
+      descendants = [...descendants, ...findAllDescendants(childId, nodesList, edgesList)]
     })
-    return descendants
+    return [...new Set(descendants)]
   }, [])
 
   const deleteNode = useCallback((nodeId: string) => {
     saveHistory()
 
-    const descendantIds = findAllDescendants(nodeId, nodes)
+    const descendantIds = findAllDescendants(nodeId, nodes, edges)
     const idsToRemove = new Set([nodeId, ...descendantIds])
 
     const remainingNodes = nodes.filter(n => !idsToRemove.has(n.id))
@@ -446,7 +479,7 @@ export function useMindMapStore(documentId?: string) {
   // Move node with all descendants
   const moveNodeWithDescendants = useCallback((nodeId: string, deltaX: number, deltaY: number) => {
     setNodes((nds) => {
-      const descendantIds = findAllDescendants(nodeId, nds)
+      const descendantIds = findAllDescendants(nodeId, nds, edges)
       const affectedIds = new Set([nodeId, ...descendantIds])
 
       return nds.map(node => {
@@ -462,7 +495,7 @@ export function useMindMapStore(documentId?: string) {
         return node
       })
     })
-  }, [findAllDescendants])
+  }, [findAllDescendants, edges])
 
   // Reparent node (change parent)
   const reparentNode = useCallback((nodeId: string, newParentId: string | undefined) => {
@@ -498,7 +531,7 @@ export function useMindMapStore(documentId?: string) {
 
     const reparentedNode = updatedNodes.find(n => n.id === nodeId)
     const reparentedLevel = reparentedNode?.data.level ?? 0
-    const descendantIds = findAllDescendants(nodeId, updatedNodes)
+    const descendantIds = findAllDescendants(nodeId, updatedNodes, edges)
 
     let finalNodes = [...updatedNodes]
     // Update descendants level by level
@@ -545,7 +578,7 @@ export function useMindMapStore(documentId?: string) {
     const node = nodes.find(n => n.id === nodeId)
     if (!node) return
 
-    const descendantIds = findAllDescendants(nodeId, nodes)
+    const descendantIds = findAllDescendants(nodeId, nodes, edges)
     const subtreeNodeIds = new Set([nodeId, ...descendantIds])
     const subtreeNodes = nodes.filter(n => subtreeNodeIds.has(n.id))
     const subtreeEdges = edges.filter(

@@ -48,8 +48,8 @@ function setHandlePositions(nodes: MindMapNode[], direction: 'TB' | 'RL' | 'BI')
         targetPosition = Position.Top
         break
       case 'RL':
-        sourcePosition = Position.Left
-        targetPosition = Position.Right
+        sourcePosition = Position.Right
+        targetPosition = Position.Left
         break
       case 'BI': {
         const rootNode = nodes.find(node => (node.data?.level ?? 0) === 0)

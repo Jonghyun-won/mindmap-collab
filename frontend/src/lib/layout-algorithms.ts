@@ -184,10 +184,14 @@ export function applyDagreLayout(
 
   const { direction, spacingX = 80, spacingY = 100 } = options
 
+  // Map internal direction to dagre rankdir
+  // Our 'RL' means user wants root-left, children-right (dagre 'LR')
+  const dagreDirection = direction === 'RL' ? 'LR' : direction
+
   const g = new dagre.graphlib.Graph()
   g.setDefaultEdgeLabel(() => ({}))
   g.setGraph({
-    rankdir: direction,
+    rankdir: dagreDirection,
     nodesep: spacingX,
     ranksep: spacingY,
     marginx: 50,

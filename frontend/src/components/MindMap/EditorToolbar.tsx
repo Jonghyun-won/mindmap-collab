@@ -1,4 +1,4 @@
-import { Plus, Save, Trash2, Palette, Info, Users, ArrowLeft, Share2, Clock, Download, LayoutGrid, ArrowDown, ArrowRight } from 'lucide-react'
+import { Plus, Save, Trash2, Palette, Info, Users, ArrowLeft, Share2, Clock, Download, LayoutGrid, ArrowDown, GitBranch } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -16,7 +16,7 @@ interface EditorToolbarProps {
   onShareClick?: () => void
   onShowHistory?: () => void
   onShowExport?: () => void
-  onAutoLayout?: (direction: 'TB' | 'LR') => void
+  onAutoLayout?: (direction: 'TB' | 'RL' | 'BI') => void
   readOnly?: boolean
 }
 
@@ -249,7 +249,7 @@ export default function EditorToolbar({
                 <LayoutGrid className="w-5 h-5" />
               </button>
               {showLayoutMenu && (
-                <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[160px] z-50">
+                <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[180px] z-50">
                   <button
                     className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
                     onClick={() => {
@@ -258,17 +258,27 @@ export default function EditorToolbar({
                     }}
                   >
                     <ArrowDown className="w-4 h-4" />
-                    트리 (위→아래)
+                    트리 (하향)
                   </button>
                   <button
                     className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
                     onClick={() => {
-                      onAutoLayout?.('LR')
+                      onAutoLayout?.('RL')
                       setShowLayoutMenu(false)
                     }}
                   >
-                    <ArrowRight className="w-4 h-4" />
-                    트리 (왼→오른쪽)
+                    <ArrowLeft className="w-4 h-4" />
+                    트리 (우→좌)
+                  </button>
+                  <button
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+                    onClick={() => {
+                      onAutoLayout?.('BI')
+                      setShowLayoutMenu(false)
+                    }}
+                  >
+                    <GitBranch className="w-4 h-4" />
+                    양쪽 방사형
                   </button>
                 </div>
               )}

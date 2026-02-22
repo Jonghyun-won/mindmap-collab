@@ -2,7 +2,7 @@ import dagre from 'dagre'
 import type { Node, Edge } from 'reactflow'
 
 // Layout types
-export type LayoutDirection = 'TB' | 'LR' // Top-Bottom, Left-Right
+export type LayoutDirection = 'TB' | 'LR' | 'RL' | 'BI' // Top-Bottom, Left-Right, Right-Left, Bilateral
 
 export interface LayoutOptions {
   direction: LayoutDirection
@@ -38,6 +38,137 @@ export function estimateNodeDimensions(node: Node): { width: number; height: num
   }
 }
 
+// Bilateral (양쪽 방사형) layout: root in center, children spread left and right
+function applyBilateralLayout(
+  nodes: Node[],
+  edges: Edge[],
+  options: LayoutOptions
+): Node[] {
+  if (nodes.length === 0) return nodes
+
+  const { spacingX = 100, spacingY = 60 } = options
+
+  // Find root node (level 0)
+  const rootNode = nodes.find(n => (n.data?.level ?? 0) === 0)
+  if (!rootNode) return applyDagreLayout(nodes, edges, { ...options, direction: 'LR' })
+
+  // Find level 1 children (direct children of root)
+  const level1Children = nodes.filter(n => n.data?.parentId === rootNode.id)
+
+  // If no children, just return with root positioned
+  if (level1Children.length === 0) return nodes
+
+  // Split children into left and right groups (alternate)
+  const rightChildren: string[] = []
+  const leftChildren: string[] = []
+  level1Children.forEach((child, index) => {
+    if (index % 2 === 0) {
+      rightChildren.push(child.id)
+    } else {
+      leftChildren.push(child.id)
+    }
+  })
+
+  // Helper: collect all descendants of given node IDs
+  function collectSubtree(rootIds: string[]): Set<string> {
+    const ids = new Set<string>(rootIds)
+    const queue = [...rootIds]
+    while (queue.length > 0) {
+      const id = queue.shift()!
+      edges.forEach(e => {
+        if (e.source === id && !ids.has(e.target)) {
+          ids.add(e.target)
+          queue.push(e.target)
+        }
+      })
+      nodes.forEach(n => {
+        if (n.data?.parentId === id && !ids.has(n.id)) {
+          ids.add(n.id)
+          queue.push(n.id)
+        }
+      })
+    }
+    return ids
+  }
+
+  const rightSubtreeIds = collectSubtree(rightChildren)
+  const leftSubtreeIds = collectSubtree(leftChildren)
+
+  // Layout right side (root + right subtree) using LR
+  const rightNodes = nodes.filter(n => n.id === rootNode.id || rightSubtreeIds.has(n.id))
+  const rightEdges = edges.filter(e =>
+    (e.source === rootNode.id && rightSubtreeIds.has(e.target)) ||
+    (rightSubtreeIds.has(e.source) && rightSubtreeIds.has(e.target))
+  )
+
+  const rightLayout = rightNodes.length > 1
+    ? applyDagreLayout(rightNodes, rightEdges, { direction: 'LR', spacingX, spacingY })
+    : rightNodes
+
+  // Layout left side (root + left subtree) using RL
+  const leftNodes = nodes.filter(n => n.id === rootNode.id || leftSubtreeIds.has(n.id))
+  const leftEdges = edges.filter(e =>
+    (e.source === rootNode.id && leftSubtreeIds.has(e.target)) ||
+    (leftSubtreeIds.has(e.source) && leftSubtreeIds.has(e.target))
+  )
+
+  const leftLayout = leftNodes.length > 1
+    ? applyDagreLayout(leftNodes, leftEdges, { direction: 'RL', spacingX, spacingY })
+    : leftNodes
+
+  // Use anchor position or root's original position
+  const anchorPos = options.anchorNodeId
+    ? (nodes.find(n => n.id === options.anchorNodeId)?.position ?? rootNode.position)
+    : rootNode.position
+
+  // Get root position from each side's layout
+  const rightRoot = rightLayout.find(n => n.id === rootNode.id)
+  const leftRoot = leftLayout.find(n => n.id === rootNode.id)
+
+  // Build position map
+  const positionMap = new Map<string, { x: number; y: number }>()
+
+  // Place root at anchor position
+  positionMap.set(rootNode.id, anchorPos)
+
+  // Offset right side: anchor right root to the root position
+  if (rightRoot) {
+    const rightOffsetX = anchorPos.x - rightRoot.position.x
+    const rightOffsetY = anchorPos.y - rightRoot.position.y
+    rightLayout.forEach(n => {
+      if (n.id !== rootNode.id) {
+        positionMap.set(n.id, {
+          x: n.position.x + rightOffsetX,
+          y: n.position.y + rightOffsetY,
+        })
+      }
+    })
+  }
+
+  // Offset left side: anchor left root to the root position
+  if (leftRoot) {
+    const leftOffsetX = anchorPos.x - leftRoot.position.x
+    const leftOffsetY = anchorPos.y - leftRoot.position.y
+    leftLayout.forEach(n => {
+      if (n.id !== rootNode.id) {
+        positionMap.set(n.id, {
+          x: n.position.x + leftOffsetX,
+          y: n.position.y + leftOffsetY,
+        })
+      }
+    })
+  }
+
+  // Apply positions
+  return nodes.map(n => {
+    const pos = positionMap.get(n.id)
+    if (pos) {
+      return { ...n, position: pos }
+    }
+    return n
+  })
+}
+
 // Main layout function using dagre
 export function applyDagreLayout(
   nodes: Node[],
@@ -45,6 +176,11 @@ export function applyDagreLayout(
   options: LayoutOptions = { direction: 'TB' }
 ): Node[] {
   if (nodes.length === 0) return nodes
+
+  // Bilateral layout requires custom handling — dagre doesn't support 'BI'
+  if (options.direction === 'BI') {
+    return applyBilateralLayout(nodes, edges, options)
+  }
 
   const { direction, spacingX = 80, spacingY = 100 } = options
 
@@ -115,6 +251,10 @@ export function applyTreeLayout(nodes: Node[], edges: Edge[]): Node[] {
 
 export function applyHorizontalLayout(nodes: Node[], edges: Edge[]): Node[] {
   return applyDagreLayout(nodes, edges, { direction: 'LR', spacingX: 100, spacingY: 60 })
+}
+
+export function applyBilateralTreeLayout(nodes: Node[], edges: Edge[]): Node[] {
+  return applyDagreLayout(nodes, edges, { direction: 'BI', spacingX: 100, spacingY: 60 })
 }
 
 // Rebalance only a subtree (for incremental layout after adding a node)

@@ -424,7 +424,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
   }, [selectedNode, deleteNode, recordChange])
 
   // Handle auto layout
-  const handleAutoLayout = useCallback((direction: 'TB' | 'LR') => {
+  const handleAutoLayout = useCallback((direction: 'TB' | 'RL' | 'BI') => {
     applyAutoLayout(direction)
     setTimeout(() => {
       fitView({ padding: 0.2, duration: 300 })

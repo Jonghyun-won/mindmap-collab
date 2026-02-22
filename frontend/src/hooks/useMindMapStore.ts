@@ -764,7 +764,7 @@ export function useMindMapStore(documentId?: string) {
     setHistory((prev) => prev.slice(0, -1))
   }, [history])
 
-  const applyAutoLayout = useCallback((direction: 'TB' | 'LR' = 'TB') => {
+  const applyAutoLayout = useCallback((direction: 'TB' | 'RL' | 'BI' = 'TB') => {
     saveHistory()
     setNodes((nds) => {
       const currentEdges = edges

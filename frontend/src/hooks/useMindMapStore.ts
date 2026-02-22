@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Node,
   Edge,
+  Position,
   addEdge,
   applyNodeChanges,
   applyEdgeChanges,
@@ -33,6 +34,61 @@ function getColorForLevel(level: number): string {
     '#9ca3af', // Level 4+: Gray
   ]
   return colors[Math.min(level, 4)]
+}
+
+// Set sourcePosition and targetPosition on each node based on layout direction
+function setHandlePositions(nodes: MindMapNode[], direction: 'TB' | 'RL' | 'BI'): MindMapNode[] {
+  return nodes.map(n => {
+    let sourcePosition: Position
+    let targetPosition: Position
+
+    switch (direction) {
+      case 'TB':
+        sourcePosition = Position.Bottom
+        targetPosition = Position.Top
+        break
+      case 'RL':
+        sourcePosition = Position.Left
+        targetPosition = Position.Right
+        break
+      case 'BI': {
+        const rootNode = nodes.find(node => (node.data?.level ?? 0) === 0)
+        if (rootNode && n.id !== rootNode.id) {
+          if (n.position.x < rootNode.position.x) {
+            // Left side: source goes further left, target comes from right (toward root)
+            sourcePosition = Position.Left
+            targetPosition = Position.Right
+          } else {
+            // Right side: source goes further right, target comes from left (toward root)
+            sourcePosition = Position.Right
+            targetPosition = Position.Left
+          }
+        } else {
+          // Root node in bilateral
+          sourcePosition = Position.Right
+          targetPosition = Position.Left
+        }
+        break
+      }
+    }
+
+    return {
+      ...n,
+      sourcePosition,
+      targetPosition,
+    }
+  })
+}
+
+// Wrapper: apply dagre layout then set handle positions
+function layoutAndSetHandles(
+  nodes: MindMapNode[],
+  edgesList: Edge[],
+  direction: 'TB' | 'RL' | 'BI',
+  anchorNodeId?: string,
+): MindMapNode[] {
+  const positioned = applyDagreLayout(nodes, edgesList, { direction, anchorNodeId })
+  return setHandlePositions(positioned, direction)
 }
 
 interface ClipboardData {
@@ -135,6 +191,7 @@ export function useMindMapStore(documentId?: string) {
   ])
   const [history, setHistory] = useState<HistoryState[]>([])
   const [clipboard, setClipboard] = useState<MindMapNode | null>(null)
+  const [layoutDirection, setLayoutDirection] = useState<'TB' | 'RL' | 'BI'>('TB')
 
   // Track if changes are from remote (Yjs) to prevent sync loops
   const isRemoteChangeRef = useRef(false)
@@ -322,17 +379,14 @@ export function useMindMapStore(documentId?: string) {
       // Find root node to anchor
       const rootNode = allNodes.find(n => (n.data.level ?? 0) === 0)
 
-      return applyDagreLayout(allNodes, allEdges, {
-        direction: 'TB',
-        anchorNodeId: rootNode?.id,
-      })
+      return layoutAndSetHandles(allNodes, allEdges, layoutDirection, rootNode?.id)
     })
 
     // Also add the edge to edge state
     setEdges((eds) => [...eds, newEdge])
 
     return newNodeId
-  }, [saveHistory, edges, setNodes, setEdges])
+  }, [saveHistory, edges, setNodes, setEdges, layoutDirection])
 
   const addSiblingNode = useCallback((currentNodeId: string, autoSelect: boolean = true) => {
     saveHistory()
@@ -378,14 +432,11 @@ export function useMindMapStore(documentId?: string) {
       // Also add edge
       setEdges((eds) => [...eds, newEdge])
 
-      return applyDagreLayout(allNodes, allEdges, {
-        direction: 'TB',
-        anchorNodeId: rootNode?.id,
-      })
+      return layoutAndSetHandles(allNodes, allEdges, layoutDirection, rootNode?.id)
     })
 
     return newNodeId
-  }, [saveHistory, edges, setNodes, setEdges])
+  }, [saveHistory, edges, setNodes, setEdges, layoutDirection])
 
   const updateNodeLabel = useCallback((nodeId: string, label: string) => {
     setNodes((nds) =>
@@ -465,16 +516,13 @@ export function useMindMapStore(documentId?: string) {
     // Re-layout remaining tree
     const rootNode = remainingNodes.find(n => (n.data.level ?? 0) === 0)
     if (rootNode && remainingNodes.length > 0) {
-      const repositioned = applyDagreLayout(remainingNodes, remainingEdges, {
-        direction: 'TB',
-        anchorNodeId: rootNode.id,
-      })
+      const repositioned = layoutAndSetHandles(remainingNodes, remainingEdges, layoutDirection, rootNode.id)
       setNodes(repositioned)
     } else {
       setNodes(remainingNodes)
     }
     setEdges(remainingEdges)
-  }, [saveHistory, nodes, edges, findAllDescendants, setNodes, setEdges])
+  }, [saveHistory, nodes, edges, findAllDescendants, setNodes, setEdges, layoutDirection])
 
   // Move node with all descendants
   const moveNodeWithDescendants = useCallback((nodeId: string, deltaX: number, deltaY: number) => {
@@ -563,16 +611,13 @@ export function useMindMapStore(documentId?: string) {
     // Re-layout with dagre
     const rootNode = finalNodes.find(n => (n.data.level ?? 0) === 0)
     if (rootNode && finalNodes.length > 0) {
-      const repositioned = applyDagreLayout(finalNodes, updatedEdges, {
-        direction: 'TB',
-        anchorNodeId: rootNode.id,
-      })
+      const repositioned = layoutAndSetHandles(finalNodes, updatedEdges, layoutDirection, rootNode.id)
       setNodes(repositioned)
     } else {
       setNodes(finalNodes)
     }
     setEdges(updatedEdges)
-  }, [saveHistory, nodes, edges, findAllDescendants, setNodes, setEdges])
+  }, [saveHistory, nodes, edges, findAllDescendants, setNodes, setEdges, layoutDirection])
 
   const copyNode = useCallback((nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId)
@@ -691,10 +736,7 @@ export function useMindMapStore(documentId?: string) {
       const allNodes = [...nodes, ...newNodes]
       const allEdges = [...edges, ...newEdges]
       const rootNode = allNodes.find(n => (n.data.level ?? 0) === 0)
-      const repositioned = applyDagreLayout(allNodes, allEdges, {
-        direction: 'TB',
-        anchorNodeId: rootNode?.id,
-      })
+      const repositioned = layoutAndSetHandles(allNodes, allEdges, layoutDirection, rootNode?.id)
       setNodes(repositioned)
       setEdges(allEdges)
     } else if (clipboard) {
@@ -731,10 +773,7 @@ export function useMindMapStore(documentId?: string) {
         const allNodes = [...nodes, newNode]
         const allEdges = [...edges, newEdge]
         const rootNode = allNodes.find(n => (n.data.level ?? 0) === 0)
-        const repositioned = applyDagreLayout(allNodes, allEdges, {
-          direction: 'TB',
-          anchorNodeId: rootNode?.id,
-        })
+        const repositioned = layoutAndSetHandles(allNodes, allEdges, layoutDirection, rootNode?.id)
         setNodes(repositioned)
         setEdges(allEdges)
       } else {
@@ -766,9 +805,11 @@ export function useMindMapStore(documentId?: string) {
 
   const applyAutoLayout = useCallback((direction: 'TB' | 'RL' | 'BI' = 'TB') => {
     saveHistory()
+    setLayoutDirection(direction)
     setNodes((nds) => {
       const currentEdges = edges
-      return applyDagreLayout(nds, currentEdges, { direction })
+      const positioned = applyDagreLayout(nds, currentEdges, { direction })
+      return setHandlePositions(positioned, direction)
     })
   }, [edges, saveHistory])
 
@@ -795,6 +836,8 @@ export function useMindMapStore(documentId?: string) {
     toggleEdgeArrow,
     updateEdgeStyle,
     applyAutoLayout,
+    layoutDirection,
+    setLayoutDirection,
     // Collaboration status
     isConnected,
     onlineUsers,

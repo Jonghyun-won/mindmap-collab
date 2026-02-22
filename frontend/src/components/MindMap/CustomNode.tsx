@@ -18,7 +18,7 @@ interface CustomNodeData {
   readOnly?: boolean
 }
 
-function CustomNode({ data, id, selected }: NodeProps<CustomNodeData>) {
+function CustomNode({ data, id, selected, sourcePosition, targetPosition }: NodeProps<CustomNodeData>) {
   const [isEditing, setIsEditing] = useState(false)
   const [label, setLabel] = useState(data.label)
   const debounceTimerRef = useRef<number | undefined>(undefined)
@@ -168,10 +168,10 @@ function CustomNode({ data, id, selected }: NodeProps<CustomNodeData>) {
         onKeyDown={handleKeyDown}
         tabIndex={0}
       >
-        {/* Handles - more visible */}
+        {/* Handles - positioned based on layout direction */}
         <Handle
           type="target"
-          position={Position.Top}
+          position={targetPosition || Position.Top}
           className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity"
           style={{
             background: bgColor,
@@ -227,7 +227,7 @@ function CustomNode({ data, id, selected }: NodeProps<CustomNodeData>) {
 
         <Handle
           type="source"
-          position={Position.Bottom}
+          position={sourcePosition || Position.Bottom}
           className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity"
           style={{
             background: bgColor,

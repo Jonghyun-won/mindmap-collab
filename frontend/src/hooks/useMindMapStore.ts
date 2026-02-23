@@ -232,27 +232,38 @@ export function useMindMapStore(documentId?: string) {
     onNodesChange: (remoteNodes) => {
       isRemoteChangeRef.current = true
       setNodes(remoteNodes)
-      isRemoteChangeRef.current = false
+      // Defer reset to next microtask so the debounced useEffect sees it
+      queueMicrotask(() => {
+        isRemoteChangeRef.current = false
+      })
     },
     onEdgesChange: (remoteEdges) => {
       isRemoteChangeRef.current = true
       setEdges(remoteEdges)
-      isRemoteChangeRef.current = false
+      queueMicrotask(() => {
+        isRemoteChangeRef.current = false
+      })
     },
     initialNodes: nodes,
     initialEdges: edges,
   })
 
-  // Sync local changes to Yjs when nodes/edges change
+  // Sync local changes to Yjs when nodes/edges change (debounced)
   useEffect(() => {
     if (!isRemoteChangeRef.current && isConnected) {
-      syncLocalNodes(nodes)
+      const timer = setTimeout(() => {
+        syncLocalNodes(nodes)
+      }, 50) // 50ms debounce - max 20 syncs/sec instead of 60+
+      return () => clearTimeout(timer)
     }
   }, [nodes, isConnected, syncLocalNodes])
 
   useEffect(() => {
     if (!isRemoteChangeRef.current && isConnected) {
-      syncLocalEdges(edges)
+      const timer = setTimeout(() => {
+        syncLocalEdges(edges)
+      }, 50)
+      return () => clearTimeout(timer)
     }
   }, [edges, isConnected, syncLocalEdges])
 

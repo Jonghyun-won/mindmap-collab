@@ -27,6 +27,12 @@ export function useYjsCollaboration({
   const providerRef = useRef<HocuspocusProvider | null>(null)
   const isLocalChangeRef = useRef(false)
 
+  // Store callbacks in refs to avoid stale closures in the observer
+  const onNodesChangeRef = useRef(onNodesChange)
+  const onEdgesChangeRef = useRef(onEdgesChange)
+  useEffect(() => { onNodesChangeRef.current = onNodesChange }, [onNodesChange])
+  useEffect(() => { onEdgesChangeRef.current = onEdgesChange }, [onEdgesChange])
+
   useEffect(() => {
     // Create Yjs document
     const ydoc = new Y.Doc()
@@ -84,12 +90,12 @@ export function useYjsCollaboration({
       console.log('🔄 Sync status:', isSynced)
     })
 
-    // Listen for remote changes
+    // Listen for remote changes (use refs to avoid stale closures)
     const observeNodes = () => {
       if (!isLocalChangeRef.current) {
         console.log('📦 Remote nodes changed')
         const nodes = yMapToNodes(yNodes)
-        onNodesChange(nodes)
+        onNodesChangeRef.current(nodes)
       }
     }
 
@@ -97,7 +103,7 @@ export function useYjsCollaboration({
       if (!isLocalChangeRef.current) {
         console.log('📦 Remote edges changed')
         const edges = yMapToEdges(yEdges)
-        onEdgesChange(edges)
+        onEdgesChangeRef.current(edges)
       }
     }
 
@@ -124,9 +130,11 @@ export function useYjsCollaboration({
         syncNodesToYjs(nodes, yNodes, ydocRef.current)
       } catch (error) {
         console.error('Error syncing nodes:', error)
-      } finally {
-        isLocalChangeRef.current = false
       }
+      // Defer reset so Yjs observer sees the flag as true
+      queueMicrotask(() => {
+        isLocalChangeRef.current = false
+      })
     }
   }, [isConnected])
 
@@ -138,9 +146,11 @@ export function useYjsCollaboration({
         syncEdgesToYjs(edges, yEdges, ydocRef.current)
       } catch (error) {
         console.error('Error syncing edges:', error)
-      } finally {
-        isLocalChangeRef.current = false
       }
+      // Defer reset so Yjs observer sees the flag as true
+      queueMicrotask(() => {
+        isLocalChangeRef.current = false
+      })
     }
   }, [isConnected])
 

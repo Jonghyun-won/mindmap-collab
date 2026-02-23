@@ -75,7 +75,15 @@ export function syncNodesToYjs(
         selected: node.selected || false,
       }
 
-      if (!existing || JSON.stringify(existing) !== JSON.stringify(nodeData)) {
+      // Shallow comparison for position (hot path during drag) with deep check only for data
+      const hasChanged = !existing ||
+        existing.position?.x !== nodeData.position?.x ||
+        existing.position?.y !== nodeData.position?.y ||
+        existing.type !== nodeData.type ||
+        existing.selected !== nodeData.selected ||
+        JSON.stringify(existing.data) !== JSON.stringify(nodeData.data)
+
+      if (hasChanged) {
         yNodes.set(node.id, nodeData)
       }
     })

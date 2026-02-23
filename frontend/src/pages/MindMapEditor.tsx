@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import MindMapCanvas from '@/components/MindMap/MindMapCanvas'
+import ErrorBoundary from '@/components/ErrorBoundary'
 import { apiClient } from '@/lib/api-client'
 
 export default function MindMapEditor() {
@@ -47,12 +48,14 @@ export default function MindMapEditor() {
   }
 
   return (
-    <div className="w-screen h-screen overflow-hidden">
-      <MindMapCanvas
-        mindMapTitle={mindMapTitle}
-        documentId={documentId}
-        onTitleSave={handleTitleSave}
-      />
-    </div>
+    <ErrorBoundary>
+      <div className="w-screen h-screen overflow-hidden">
+        <MindMapCanvas
+          mindMapTitle={mindMapTitle}
+          documentId={documentId}
+          onTitleSave={handleTitleSave}
+        />
+      </div>
+    </ErrorBoundary>
   )
 }

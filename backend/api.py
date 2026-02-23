@@ -718,6 +718,57 @@ def accept_invite_endpoint(
 
 
 # ============================================================================
+# Users Routes
+# ============================================================================
+
+@app.get("/users/search")
+def search_users_endpoint(
+    q: str = Query(..., min_length=1),
+    limit: int = Query(5, ge=1, le=20),
+    token: str = Depends(get_current_user)
+):
+    """Search users by name or email. Requires authentication."""
+    from conn import get_db_connection
+
+    verify_jwt_token(token)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    search_pattern = f"%{q}%"
+    cursor.execute("""
+        SELECT id, email, name, team
+        FROM public.users
+        WHERE (email ILIKE %s OR name ILIKE %s)
+        AND email_verified = TRUE
+        AND is_active = TRUE
+        ORDER BY
+            CASE WHEN email = %s THEN 0
+                 WHEN email ILIKE %s THEN 1
+                 WHEN name ILIKE %s THEN 2
+                 ELSE 3
+            END
+        LIMIT %s
+    """, (search_pattern, search_pattern, q, f"{q}%", f"{q}%", limit))
+
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return {
+        "users": [
+            {
+                "id": str(row[0]),
+                "email": row[1],
+                "name": row[2],
+                "team": row[3],
+            }
+            for row in rows
+        ]
+    }
+
+
+# ============================================================================
 # Admin Routes
 # ============================================================================
 

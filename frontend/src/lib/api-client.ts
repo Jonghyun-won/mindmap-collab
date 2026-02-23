@@ -334,6 +334,15 @@ class ApiClient {
     )
   }
 
+  // ========== Users Methods ==========
+
+  async searchUsers(query: string, limit: number = 5): Promise<{ users: Array<{ id: string; email: string; name: string | null; team: string | null }> }> {
+    const params = new URLSearchParams({ q: query, limit: limit.toString() })
+    return this.request<{ users: Array<{ id: string; email: string; name: string | null; team: string | null }> }>(
+      `/users/search?${params}`
+    )
+  }
+
   // ========== Admin Methods ==========
 
   async getAdminStats(): Promise<any> {

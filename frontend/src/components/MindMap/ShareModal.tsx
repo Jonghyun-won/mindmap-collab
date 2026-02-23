@@ -42,6 +42,11 @@ export default function ShareModal({
   const [invitePermission, setInvitePermission] = useState<'view' | 'edit' | 'admin'>('edit')
   const [isInviting, setIsInviting] = useState(false)
 
+  // User search state
+  const [searchResults, setSearchResults] = useState<Array<{ id: string; email: string; name: string | null; team: string | null }>>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showDropdown, setShowDropdown] = useState(false)
+
   // Invite link state
   const [inviteLinks, setInviteLinks] = useState<any[]>([])
   const [linkPermission, setLinkPermission] = useState<'view' | 'edit'>('view')
@@ -81,6 +86,36 @@ export default function ShareModal({
     } finally {
       setIsLoadingLinks(false)
     }
+  }
+
+  // Search users with debounce
+  useEffect(() => {
+    if (!inviteEmail.trim() || inviteEmail.length < 2) {
+      setSearchResults([])
+      setShowDropdown(false)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true)
+      try {
+        const result = await apiClient.searchUsers(inviteEmail.trim())
+        setSearchResults(result.users)
+        setShowDropdown(result.users.length > 0)
+      } catch (err) {
+        console.error('Search error:', err)
+      } finally {
+        setIsSearching(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [inviteEmail])
+
+  const handleSelectUser = (user: { id: string; email: string; name: string | null }) => {
+    setInviteEmail(user.email)
+    setShowDropdown(false)
+    setSearchResults([])
   }
 
   const handleCreateInviteLink = async () => {
@@ -199,13 +234,45 @@ export default function ShareModal({
               <div className="flex-1 relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
-                  type="email"
-                  placeholder="Enter email address"
+                  type="text"
+                  placeholder="이름 또는 이메일로 검색"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
+                  onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
                   className="pl-9"
                   disabled={isInviting}
+                  autoComplete="off"
                 />
+                {/* Search results dropdown */}
+                {showDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-[200px] overflow-y-auto">
+                    {searchResults.map((user) => (
+                      <button
+                        key={user.id}
+                        type="button"
+                        className="w-full px-3 py-2 text-left hover:bg-blue-50 flex items-center gap-2 transition-colors"
+                        onMouseDown={(e) => { e.preventDefault(); handleSelectUser(user) }}
+                      >
+                        <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-medium flex-shrink-0">
+                          {(user.name || user.email)[0].toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{user.name || '-'}</p>
+                          <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                        </div>
+                        {user.team && (
+                          <span className="ml-auto text-[10px] text-gray-400 flex-shrink-0">{user.team}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {isSearching && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                  </div>
+                )}
               </div>
               <Select
                 value={invitePermission}
@@ -238,7 +305,7 @@ export default function ShareModal({
               </Select>
               <Button type="submit" disabled={isInviting || !inviteEmail.trim()}>
                 <UserPlus className="w-4 h-4" />
-                Invite
+                초대
               </Button>
             </div>
           </form>

@@ -358,6 +358,12 @@ class ApiClient {
       body: JSON.stringify({ is_active: isActive }),
     })
   }
+
+  async verifyUser(userId: string): Promise<any> {
+    return this.request<any>(`/admin/users/${userId}/verify`, {
+      method: 'PUT',
+    })
+  }
 }
 
 export const apiClient = new ApiClient()

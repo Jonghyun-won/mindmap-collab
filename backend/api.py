@@ -68,7 +68,7 @@ from jose import JWTError
 # Import admin functions
 from admin.dashboard_stats import get_dashboard_stats
 from admin.list_users import list_users as admin_list_users
-from admin.update_user import update_user_role, update_user_status
+from admin.update_user import update_user_role, update_user_status, verify_user_email
 from admin.model import UpdateUserRoleRequest, UpdateUserStatusRequest
 from utils.admin_helper import require_admin
 
@@ -711,6 +711,19 @@ def admin_update_status_endpoint(
         raise HTTPException(status_code=400, detail="자기 자신을 비활성화할 수 없습니다")
     try:
         return update_user_status(user_id, request.is_active)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.put("/admin/users/{user_id}/verify")
+def admin_verify_user_endpoint(
+    user_id: str,
+    token: str = Depends(get_current_user)
+):
+    """Force-verify a user's email."""
+    require_admin(token)
+    try:
+        return verify_user_email(user_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

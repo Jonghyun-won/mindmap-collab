@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Search, Shield, ShieldOff, UserCheck, UserX, Users, Map, CheckCircle, XCircle } from 'lucide-react'
+import { ArrowLeft, Search, Shield, ShieldOff, UserCheck, UserX, Users, Map, CheckCircle, XCircle, MailCheck } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import type { AdminUser, AdminDashboardStats, AdminUserListResponse } from '@/types/admin'
 
@@ -56,6 +56,16 @@ export default function AdminDashboard() {
       fetchStats()
     } catch (error: any) {
       alert(error.message || '역할 변경에 실패했습니다')
+    }
+  }
+
+  const handleVerifyUser = async (userId: string) => {
+    try {
+      await apiClient.verifyUser(userId)
+      fetchUsers()
+      fetchStats()
+    } catch (error: any) {
+      alert(error.message || '인증 처리에 실패했습니다')
     }
   }
 
@@ -233,6 +243,15 @@ export default function AdminDashboard() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-1">
+                          {!user.email_verified && (
+                            <button
+                              onClick={() => handleVerifyUser(user.id)}
+                              className="p-1.5 rounded-lg transition-colors text-gray-400 hover:bg-green-50 hover:text-green-600"
+                              title="이메일 인증 처리"
+                            >
+                              <MailCheck className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleToggleRole(user.id, user.role)}
                             className={`p-1.5 rounded-lg transition-colors ${

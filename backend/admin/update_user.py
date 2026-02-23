@@ -38,3 +38,21 @@ def update_user_status(user_id: str, is_active: bool) -> dict:
     cursor.close()
     conn.close()
     return {"id": str(row[0]), "email": row[1], "is_active": row[2]}
+
+
+def verify_user_email(user_id: str) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE public.users SET email_verified = TRUE WHERE id = %s RETURNING id, email, name, email_verified",
+        (user_id,)
+    )
+    row = cursor.fetchone()
+    if not row:
+        cursor.close()
+        conn.close()
+        raise ValueError("User not found")
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return {"id": str(row[0]), "email": row[1], "name": row[2], "email_verified": row[3]}

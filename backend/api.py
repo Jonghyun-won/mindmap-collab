@@ -1,6 +1,7 @@
 import os
 import uuid
 from fastapi import FastAPI, HTTPException, Header, Depends, Query
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from typing import Optional
@@ -216,6 +217,62 @@ def api_resend_confirmation(request: ResendConfirmationRequest):
         if "already verified" in str(e).lower():
             raise HTTPException(status_code=409, detail=str(e))
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/auth/verify-email")
+def verify_email_by_token(token: str = Query(...)):
+    """Verify email via link token. Returns HTML page with redirect."""
+    from conn import get_db_connection as _get_db_connection
+    conn = _get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            """
+            SELECT ec.id, ec.user_id, u.email
+            FROM public.email_confirmations ec
+            JOIN public.users u ON u.id = ec.user_id
+            WHERE ec.verification_token = %s AND ec.used = FALSE AND ec.expires_at > NOW()
+            ORDER BY ec.created_at DESC LIMIT 1
+            """,
+            (token,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return HTMLResponse(content="""
+                <html><body style="font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f9fafb;">
+                <div style="text-align:center;padding:40px;">
+                    <h2 style="color:#dc2626;">인증 실패</h2>
+                    <p style="color:#6b7280;">유효하지 않거나 만료된 인증 링크입니다.</p>
+                </div></body></html>
+            """, status_code=400)
+
+        confirmation_id, user_id, email = row
+
+        cursor.execute("UPDATE public.email_confirmations SET used = TRUE WHERE id = %s", (confirmation_id,))
+        cursor.execute("UPDATE public.users SET email_verified = TRUE WHERE id = %s", (user_id,))
+        conn.commit()
+
+        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5174")
+
+        return HTMLResponse(content=f"""
+            <html><body style="font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f9fafb;">
+            <div style="text-align:center;padding:40px;">
+                <div style="font-size:48px;margin-bottom:16px;">&#x2705;</div>
+                <h2 style="color:#059669;">이메일 인증 완료!</h2>
+                <p style="color:#6b7280;">이제 로그인할 수 있습니다.</p>
+                <a href="{frontend_url}" style="display:inline-block;margin-top:20px;background:#2563EB;color:white;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:bold;">
+                    로그인 페이지로 이동
+                </a>
+                <script>setTimeout(function(){{window.location.href='{frontend_url}'}}, 3000)</script>
+            </div></body></html>
+        """)
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
 
 
 @app.get("/auth/me", response_model=User)

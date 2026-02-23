@@ -99,7 +99,7 @@ export default function SignupForm({ onToggle }: { onToggle: () => void }) {
                 으로 인증코드가 발송되었습니다.
               </p>
               <p className="text-gray-500 text-xs mt-1">
-                이메일을 확인하여 6자리 인증코드를 입력해주세요.
+                이메일의 인증 링크를 클릭하거나, 아래에 인증코드를 입력해주세요.
               </p>
             </div>
 

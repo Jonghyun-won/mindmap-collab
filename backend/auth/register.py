@@ -1,6 +1,7 @@
 import argparse
 import json
 import random
+import uuid
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from conn import get_db_connection
@@ -68,26 +69,27 @@ def register(request: RegisterRequest) -> RegisterResponse:
     user_email_verified = user_row[5]
     user_created_at = user_row[6]
 
-    # Generate 6-digit confirmation code
+    # Generate 6-digit confirmation code and UUID verification token
     code = str(random.randint(100000, 999999))
+    verify_token = str(uuid.uuid4())
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
 
-    # Save confirmation code
+    # Save confirmation code with verification token
     cursor.execute(
         """
-        INSERT INTO public.email_confirmations (user_id, confirmation_code, expires_at)
-        VALUES (%s, %s, %s)
+        INSERT INTO public.email_confirmations (user_id, confirmation_code, verification_token, expires_at)
+        VALUES (%s, %s, %s, %s)
         """,
-        (user_id, code, expires_at)
+        (user_id, code, verify_token, expires_at)
     )
 
     conn.commit()
     cursor.close()
     conn.close()
 
-    # Send verification email
+    # Send verification email with link
     from utils.email_sender import send_verification_email
-    send_verification_email(request.email, code, request.name)
+    send_verification_email(request.email, code, request.name, verify_token)
 
     # Build User object
     user = User(

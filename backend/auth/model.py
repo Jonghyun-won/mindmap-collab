@@ -9,6 +9,7 @@ class User(BaseModel):
     email: EmailStr
     name: Optional[str] = None
     team: Optional[str] = None
+    phone: Optional[str] = None
     email_verified: bool = False
     role: str = "user"
     created_at: datetime
@@ -23,6 +24,7 @@ class RegisterRequest(BaseModel):
     password: str = Field(..., min_length=6)
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     team: Optional[str] = Field(None, max_length=100)
+    phone: Optional[str] = Field(None, max_length=20)
 
 class ConfirmEmailRequest(BaseModel):
     email: EmailStr

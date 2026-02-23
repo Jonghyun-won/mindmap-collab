@@ -19,13 +19,13 @@ def list_users(page: int = 1, limit: int = 20, search: str = None) -> dict:
 
     cursor.execute(f"""
         SELECT
-            u.id, u.email, u.name, u.team, u.role, u.email_verified, u.is_active, u.created_at,
+            u.id, u.email, u.name, u.team, u.phone, u.role, u.email_verified, u.is_active, u.created_at,
             COUNT(DISTINCT m.id) as mindmap_count,
             GREATEST(MAX(m.updated_at), u.updated_at) as last_activity
         FROM public.users u
         LEFT JOIN public.mindmaps m ON m.owner_id = u.id
         {where_clause}
-        GROUP BY u.id, u.email, u.name, u.team, u.role, u.email_verified, u.is_active, u.created_at, u.updated_at
+        GROUP BY u.id, u.email, u.name, u.team, u.phone, u.role, u.email_verified, u.is_active, u.created_at, u.updated_at
         ORDER BY u.created_at DESC
         LIMIT %s OFFSET %s
     """, params + [limit, offset])
@@ -41,12 +41,13 @@ def list_users(page: int = 1, limit: int = 20, search: str = None) -> dict:
             "email": row[1],
             "name": row[2],
             "team": row[3],
-            "role": row[4],
-            "email_verified": row[5],
-            "is_active": row[6],
-            "created_at": row[7].isoformat() if row[7] else None,
-            "mindmap_count": row[8],
-            "last_activity": row[9].isoformat() if row[9] else None,
+            "phone": row[4],
+            "role": row[5],
+            "email_verified": row[6],
+            "is_active": row[7],
+            "created_at": row[8].isoformat() if row[8] else None,
+            "mindmap_count": row[9],
+            "last_activity": row[10].isoformat() if row[10] else None,
         })
 
     return {

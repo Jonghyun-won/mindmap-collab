@@ -6,6 +6,7 @@ export interface User {
   email: string
   name: string | null
   team: string | null
+  phone: string | null
   email_verified: boolean
   role: string
   created_at: string
@@ -23,6 +24,7 @@ export interface RegisterRequest {
   password: string
   name?: string | null
   team?: string | null
+  phone?: string | null
 }
 
 // LoginResponse schema

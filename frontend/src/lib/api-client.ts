@@ -85,9 +85,10 @@ class ApiClient {
     email: string,
     password: string,
     name?: string,
-    team?: string
+    team?: string,
+    phone?: string
   ): Promise<RegisterResponse> {
-    const requestData: RegisterRequest = { email, password, name, team }
+    const requestData: RegisterRequest = { email, password, name, team, phone }
     return this.request<RegisterResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(requestData),

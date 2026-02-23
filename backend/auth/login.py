@@ -16,7 +16,7 @@ def login(request: LoginRequest) -> LoginResponse:
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT id, email, name, team, email_verified, password_hash, created_at, role, is_active FROM public.users WHERE email = %s",
+        "SELECT id, email, name, team, phone, email_verified, password_hash, created_at, role, is_active FROM public.users WHERE email = %s",
         (request.email,)
     )
     row = cursor.fetchone()
@@ -26,7 +26,7 @@ def login(request: LoginRequest) -> LoginResponse:
     if not row:
         raise AuthenticationError("등록되지 않은 이메일입니다")
 
-    user_id, email, name, team, email_verified, password_hash, created_at, role, is_active = row
+    user_id, email, name, team, phone, email_verified, password_hash, created_at, role, is_active = row
 
     if not verify_password(request.password, password_hash):
         raise AuthenticationError("비밀번호가 틀렸습니다")
@@ -44,6 +44,7 @@ def login(request: LoginRequest) -> LoginResponse:
         email=email,
         name=name,
         team=team,
+        phone=phone,
         email_verified=email_verified,
         role=role,
         created_at=created_at

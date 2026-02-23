@@ -7,7 +7,7 @@ interface AuthContextValue {
   loading: boolean
   error: string | null
   login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string, name?: string, team?: string) => Promise<RegisterResponse>
+  register: (email: string, password: string, name?: string, team?: string, phone?: string) => Promise<RegisterResponse>
   confirmEmail: (email: string, code: string) => Promise<void>
   resendConfirmation: (email: string) => Promise<ResendConfirmationResponse>
   logout: () => Promise<void>
@@ -54,11 +54,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
-  const register = async (email: string, password: string, name?: string, team?: string): Promise<RegisterResponse> => {
+  const register = async (email: string, password: string, name?: string, team?: string, phone?: string): Promise<RegisterResponse> => {
     setLoading(true)
     setError(null)
     try {
-      const response = await apiClient.register(email, password, name, team)
+      const response = await apiClient.register(email, password, name, team, phone)
       return response
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed'

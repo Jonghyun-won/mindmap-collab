@@ -3,6 +3,7 @@ export interface AdminUser {
   email: string
   name: string | null
   team: string | null
+  phone: string | null
   role: string
   email_verified: boolean
   is_active: boolean

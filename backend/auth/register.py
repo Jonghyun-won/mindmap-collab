@@ -51,11 +51,11 @@ def register(request: RegisterRequest) -> RegisterResponse:
     # Insert new user with email_verified = FALSE
     cursor.execute(
         """
-        INSERT INTO public.users (email, password_hash, name, team, email_verified)
-        VALUES (%s, %s, %s, %s, FALSE)
-        RETURNING id, email, name, team, email_verified, created_at
+        INSERT INTO public.users (email, password_hash, name, team, phone, email_verified)
+        VALUES (%s, %s, %s, %s, %s, FALSE)
+        RETURNING id, email, name, team, phone, email_verified, created_at
         """,
-        (request.email, hashed_password, request.name, request.team)
+        (request.email, hashed_password, request.name, request.team, request.phone)
     )
 
     user_row = cursor.fetchone()
@@ -64,8 +64,9 @@ def register(request: RegisterRequest) -> RegisterResponse:
     user_email = user_row[1]
     user_name = user_row[2]
     user_team = user_row[3]
-    user_email_verified = user_row[4]
-    user_created_at = user_row[5]
+    user_phone = user_row[4]
+    user_email_verified = user_row[5]
+    user_created_at = user_row[6]
 
     # Generate 6-digit confirmation code
     code = str(random.randint(100000, 999999))
@@ -94,6 +95,7 @@ def register(request: RegisterRequest) -> RegisterResponse:
         email=user_email,
         name=user_name,
         team=user_team,
+        phone=user_phone,
         email_verified=user_email_verified,
         created_at=user_created_at
     )
@@ -105,8 +107,8 @@ def register(request: RegisterRequest) -> RegisterResponse:
     )
 
 
-def main(email: str, password: str, name: str = None, team: str = None) -> dict:
-    request = RegisterRequest(email=email, password=password, name=name, team=team)
+def main(email: str, password: str, name: str = None, team: str = None, phone: str = None) -> dict:
+    request = RegisterRequest(email=email, password=password, name=name, team=team, phone=phone)
     response = register(request)
 
     return {
@@ -116,6 +118,7 @@ def main(email: str, password: str, name: str = None, team: str = None) -> dict:
             "email": response.user.email,
             "name": response.user.name,
             "team": response.user.team,
+            "phone": response.user.phone,
             "email_verified": response.user.email_verified,
             "created_at": response.user.created_at.isoformat()
         }
@@ -128,9 +131,10 @@ if __name__ == "__main__":
     parser.add_argument("--password", required=True, help="User password")
     parser.add_argument("--name", help="User display name (optional)")
     parser.add_argument("--team", help="User team (optional)")
+    parser.add_argument("--phone", help="User phone number (optional)")
     args = parser.parse_args()
 
-    result = main(args.email, args.password, args.name, args.team)
+    result = main(args.email, args.password, args.name, args.team, args.phone)
 
     # Save to output folder
     output_dir = Path(__file__).parent / "output"

@@ -8,6 +8,7 @@ export default function SignupForm({ onToggle }: { onToggle: () => void }) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [name, setName] = useState('')
   const [team, setTeam] = useState('')
+  const [phone, setPhone] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -40,7 +41,7 @@ export default function SignupForm({ onToggle }: { onToggle: () => void }) {
     setLoading(true)
 
     try {
-      await register(email, password, name.trim(), team.trim() || undefined)
+      await register(email, password, name.trim(), team.trim() || undefined, phone.trim() || undefined)
       setRegisteredEmail(email)
       setStep(2)
     } catch (err) {
@@ -194,6 +195,19 @@ export default function SignupForm({ onToggle }: { onToggle: () => void }) {
                 placeholder="선택사항"
                 value={team}
                 onChange={(e) => setTeam(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                전화번호
+              </label>
+              <input
+                type="tel"
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="010-0000-0000 (선택사항)"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
               />
             </div>
 

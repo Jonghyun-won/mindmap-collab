@@ -18,7 +18,7 @@ def send_verification_email(to_email: str, code: str, user_name: str = None) -> 
         resend.api_key = RESEND_API_KEY
 
         resend.Emails.send({
-            "from": "MindMap Collab <noreply@resend.dev>",
+            "from": "FunnelMind <onboarding@resend.dev>",
             "to": [to_email],
             "subject": "[MindMap Collab] 이메일 인증코드",
             "html": f"""

@@ -492,6 +492,8 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
         }
       }
 
+      if (!dragStateRef.current) return
+
       const deltaX = node.position.x - dragStateRef.current.startX
       const deltaY = node.position.y - dragStateRef.current.startY
 

@@ -92,16 +92,18 @@ export function useYjsCollaboration({
 
     // Listen for remote changes (use refs to avoid stale closures)
     const observeNodes = () => {
-      if (!isLocalChangeRef.current) {
-        console.log('📦 Remote nodes changed')
+      if (!isLocalChangeRef.current && yNodes.size > 0) {
+        console.log('📦 Remote nodes changed, count:', yNodes.size)
         const nodes = yMapToNodes(yNodes)
-        onNodesChangeRef.current(nodes)
+        if (nodes.length > 0) {
+          onNodesChangeRef.current(nodes)
+        }
       }
     }
 
     const observeEdges = () => {
-      if (!isLocalChangeRef.current) {
-        console.log('📦 Remote edges changed')
+      if (!isLocalChangeRef.current && yEdges.size > 0) {
+        console.log('📦 Remote edges changed, count:', yEdges.size)
         const edges = yMapToEdges(yEdges)
         onEdgesChangeRef.current(edges)
       }

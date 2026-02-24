@@ -503,7 +503,7 @@ export function useMindMapStore(documentId?: string) {
   // Find all descendants of a node (checks both parentId data and edges)
   const findAllDescendants = useCallback((nodeId: string, nodesList: MindMapNode[], edgesList?: Edge[]): string[] => {
     // Find children via parentId data
-    const childrenByParentId = nodesList.filter(n => n.data.parentId === nodeId).map(c => c.id)
+    const childrenByParentId = nodesList.filter(n => n?.data?.parentId === nodeId).map(c => c.id)
 
     // Find children via edges (source -> target)
     const childrenByEdges = edgesList

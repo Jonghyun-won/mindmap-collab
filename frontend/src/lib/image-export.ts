@@ -3,9 +3,6 @@ import { jsPDF } from 'jspdf'
 import { getNodesBounds, getViewportForBounds } from 'reactflow'
 import type { Node } from 'reactflow'
 
-const IMAGE_WIDTH = 1920
-const IMAGE_HEIGHT = 1080
-
 function getViewport() {
   const viewport = document.querySelector('.react-flow__viewport') as HTMLElement | null
   if (!viewport) throw new Error('ReactFlow viewport not found')
@@ -14,8 +11,23 @@ function getViewport() {
 
 function computeExportTransform(nodes: Node[]) {
   const nodesBounds = getNodesBounds(nodes)
-  const { x, y, zoom } = getViewportForBounds(nodesBounds, IMAGE_WIDTH, IMAGE_HEIGHT, 0.5, 2, 0.1)
-  return { x, y, zoom }
+
+  // Calculate dynamic size based on bounds with padding
+  const padding = 100  // pixels of padding around content
+  const width = Math.max(1920, nodesBounds.width + padding * 2)
+  const height = Math.max(1080, nodesBounds.height + padding * 2)
+
+  // Increased zoom limits to prevent clipping
+  const { x, y, zoom } = getViewportForBounds(
+    nodesBounds,
+    width,
+    height,
+    0.1,  // minZoom (can zoom out more)
+    4,    // maxZoom (increased from 2)
+    0.15  // padding (increased from 0.1)
+  )
+
+  return { x, y, zoom, width, height }
 }
 
 const filterNodes = (node: HTMLElement): boolean => {
@@ -26,66 +38,22 @@ const filterNodes = (node: HTMLElement): boolean => {
     !node.classList.contains('react-flow__attribution')
 }
 
-/**
- * Temporarily applies the export transform directly to the viewport DOM element,
- * captures an image, then restores the original styles.
- * This ensures SVG edges are properly positioned during capture,
- * unlike the `style` option in html-to-image which doesn't propagate to nested SVGs.
- */
-async function captureWithDOMTransform<T>(
-  viewport: HTMLElement,
-  nodes: Node[],
-  captureFn: (viewport: HTMLElement, options: Record<string, unknown>) => Promise<T>,
-  extraOptions: Record<string, unknown> = {},
-): Promise<T> {
-  const { x, y, zoom } = computeExportTransform(nodes)
-
-  // Save original inline styles
-  const originalTransform = viewport.style.transform
-  const originalWidth = viewport.style.width
-  const originalHeight = viewport.style.height
-
-  // Directly modify the viewport DOM for capture
-  viewport.style.transform = `translate(${x}px, ${y}px) scale(${zoom})`
-  viewport.style.width = `${IMAGE_WIDTH}px`
-  viewport.style.height = `${IMAGE_HEIGHT}px`
-
-  // Wait a frame for the DOM to update
-  await new Promise(resolve => requestAnimationFrame(resolve))
-
-  const options: Record<string, unknown> = {
-    backgroundColor: '#ffffff',
-    width: IMAGE_WIDTH,
-    height: IMAGE_HEIGHT,
-    filter: filterNodes,
-    cacheBust: true,
-    skipFonts: true,
-    ...extraOptions,
-  }
-
-  try {
-    // First call to warm up (fonts/images get cached)
-    await captureFn(viewport, options).catch(() => {})
-    // Second call produces correct output
-    const result = await captureFn(viewport, options)
-    return result
-  } finally {
-    // Always restore original styles
-    viewport.style.transform = originalTransform
-    viewport.style.width = originalWidth
-    viewport.style.height = originalHeight
-  }
-}
-
 export async function exportToPNG(nodes: Node[], filename: string = 'mindmap.png'): Promise<void> {
   const viewport = getViewport()
+  const { x, y, zoom, width, height } = computeExportTransform(nodes)
 
-  const dataUrl = await captureWithDOMTransform(
-    viewport,
-    nodes,
-    (el, opts) => toPng(el, opts),
-    { pixelRatio: 2 },
-  )
+  const dataUrl = await toPng(viewport, {
+    backgroundColor: '#ffffff',
+    pixelRatio: 2,
+    width,
+    height,
+    style: {
+      width: `${width}px`,
+      height: `${height}px`,
+      transform: `translate(${x}px, ${y}px) scale(${zoom})`,
+    },
+    filter: filterNodes,
+  })
 
   const link = document.createElement('a')
   link.download = filename
@@ -95,12 +63,19 @@ export async function exportToPNG(nodes: Node[], filename: string = 'mindmap.png
 
 export async function exportToSVG(nodes: Node[], filename: string = 'mindmap.svg'): Promise<void> {
   const viewport = getViewport()
+  const { x, y, zoom, width, height } = computeExportTransform(nodes)
 
-  const dataUrl = await captureWithDOMTransform(
-    viewport,
-    nodes,
-    (el, opts) => toSvg(el, opts),
-  )
+  const dataUrl = await toSvg(viewport, {
+    backgroundColor: '#ffffff',
+    width,
+    height,
+    style: {
+      width: `${width}px`,
+      height: `${height}px`,
+      transform: `translate(${x}px, ${y}px) scale(${zoom})`,
+    },
+    filter: filterNodes,
+  })
 
   const link = document.createElement('a')
   link.download = filename
@@ -108,50 +83,22 @@ export async function exportToSVG(nodes: Node[], filename: string = 'mindmap.svg
   link.click()
 }
 
-export async function exportToJPG(nodes: Node[], filename: string = 'mindmap.jpg'): Promise<void> {
-  const viewport = getViewport()
-
-  // Use the same captureWithDOMTransform for proper edge rendering
-  const dataUrl = await captureWithDOMTransform(
-    viewport,
-    nodes,
-    (el, opts) => toPng(el, opts),
-    { pixelRatio: 2 },
-  )
-
-  // Convert PNG to JPG (reduce quality for smaller file size)
-  const img = new Image()
-  img.src = dataUrl
-  await new Promise((resolve) => { img.onload = resolve })
-
-  const jpgCanvas = document.createElement('canvas')
-  jpgCanvas.width = img.width
-  jpgCanvas.height = img.height
-  const ctx = jpgCanvas.getContext('2d')
-  if (!ctx) throw new Error('Canvas context not available')
-
-  // White background for JPG (no transparency)
-  ctx.fillStyle = '#FFFFFF'
-  ctx.fillRect(0, 0, jpgCanvas.width, jpgCanvas.height)
-  ctx.drawImage(img, 0, 0)
-
-  const jpgDataUrl = jpgCanvas.toDataURL('image/jpeg', 0.9)
-
-  const link = document.createElement('a')
-  link.download = filename
-  link.href = jpgDataUrl
-  link.click()
-}
-
 export async function exportToPDF(nodes: Node[], filename: string = 'mindmap.pdf', title?: string): Promise<void> {
   const viewport = getViewport()
+  const { x, y, zoom, width, height } = computeExportTransform(nodes)
 
-  const dataUrl = await captureWithDOMTransform(
-    viewport,
-    nodes,
-    (el, opts) => toPng(el, opts),
-    { pixelRatio: 2 },
-  )
+  const dataUrl = await toPng(viewport, {
+    backgroundColor: '#ffffff',
+    pixelRatio: 2,
+    width,
+    height,
+    style: {
+      width: `${width}px`,
+      height: `${height}px`,
+      transform: `translate(${x}px, ${y}px) scale(${zoom})`,
+    },
+    filter: filterNodes,
+  })
 
   const img = new Image()
   img.src = dataUrl

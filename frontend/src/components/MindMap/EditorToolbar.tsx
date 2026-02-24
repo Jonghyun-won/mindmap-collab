@@ -244,7 +244,7 @@ export default function EditorToolbar({
               <button
                 onClick={() => setShowLayoutMenu(!showLayoutMenu)}
                 className="p-2 rounded-md hover:bg-gray-100 transition-colors text-gray-700"
-                title="자동 정렬"
+                title="정렬 (Layout)"
               >
                 <LayoutGrid className="w-5 h-5" />
               </button>

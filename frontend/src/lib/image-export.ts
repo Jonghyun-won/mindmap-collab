@@ -108,6 +108,41 @@ export async function exportToSVG(nodes: Node[], filename: string = 'mindmap.svg
   link.click()
 }
 
+export async function exportToJPG(nodes: Node[], filename: string = 'mindmap.jpg'): Promise<void> {
+  const viewport = getViewport()
+
+  // Use the same captureWithDOMTransform for proper edge rendering
+  const dataUrl = await captureWithDOMTransform(
+    viewport,
+    nodes,
+    (el, opts) => toPng(el, opts),
+    { pixelRatio: 2 },
+  )
+
+  // Convert PNG to JPG (reduce quality for smaller file size)
+  const img = new Image()
+  img.src = dataUrl
+  await new Promise((resolve) => { img.onload = resolve })
+
+  const jpgCanvas = document.createElement('canvas')
+  jpgCanvas.width = img.width
+  jpgCanvas.height = img.height
+  const ctx = jpgCanvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas context not available')
+
+  // White background for JPG (no transparency)
+  ctx.fillStyle = '#FFFFFF'
+  ctx.fillRect(0, 0, jpgCanvas.width, jpgCanvas.height)
+  ctx.drawImage(img, 0, 0)
+
+  const jpgDataUrl = jpgCanvas.toDataURL('image/jpeg', 0.9)
+
+  const link = document.createElement('a')
+  link.download = filename
+  link.href = jpgDataUrl
+  link.click()
+}
+
 export async function exportToPDF(nodes: Node[], filename: string = 'mindmap.pdf', title?: string): Promise<void> {
   const viewport = getViewport()
 

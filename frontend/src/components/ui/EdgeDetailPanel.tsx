@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Edge } from 'reactflow'
 
 interface EdgeDetailPanelProps {
@@ -9,6 +10,7 @@ interface EdgeDetailPanelProps {
 
 export function EdgeDetailPanel({ edge, onToggleArrow, onUpdateStyle, onClose }: EdgeDetailPanelProps) {
   const hasArrow = edge.markerEnd && typeof edge.markerEnd === 'object' && (edge.markerEnd as any).type
+  const [strokeWidth, setStrokeWidth] = useState<number>((edge.style?.strokeWidth as number) || 2)
 
   return (
     <div className="absolute right-4 top-20 w-64 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-50">
@@ -33,7 +35,7 @@ export function EdgeDetailPanel({ edge, onToggleArrow, onUpdateStyle, onClose }:
       </div>
 
       {/* Edge type */}
-      <div>
+      <div className="mb-4">
         <label className="block text-sm text-gray-600 mb-1">연결선 스타일</label>
         <select
           value={edge.type || 'smoothstep'}
@@ -44,6 +46,25 @@ export function EdgeDetailPanel({ edge, onToggleArrow, onUpdateStyle, onClose }:
           <option value="straight">직선</option>
           <option value="bezier">곡선</option>
           <option value="step">직각</option>
+        </select>
+      </div>
+
+      {/* Stroke width */}
+      <div>
+        <label className="block text-sm text-gray-600 mb-1">선 두께</label>
+        <select
+          value={strokeWidth.toString()}
+          onChange={(e) => {
+            const width = parseInt(e.target.value)
+            setStrokeWidth(width)
+            onUpdateStyle(edge.id, { style: { ...edge.style, strokeWidth: width } })
+          }}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+        >
+          <option value="1">얇게 (1px)</option>
+          <option value="2">기본 (2px)</option>
+          <option value="3">두껍게 (3px)</option>
+          <option value="4">매우 두껍게 (4px)</option>
         </select>
       </div>
     </div>

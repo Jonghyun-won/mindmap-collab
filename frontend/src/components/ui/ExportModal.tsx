@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { useExport } from "@/hooks/useExport"
 import { useImport } from "@/hooks/useImport"
 import { downloadJSON, uploadJSON } from "@/lib/export-utils"
-import { exportToPNG, exportToSVG, exportToPDF } from "@/lib/image-export"
+import { exportToPNG, exportToJPG, exportToSVG, exportToPDF } from "@/lib/image-export"
 import { Upload, Image, FileImage, FileText, Database, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/useToast"
 
@@ -17,7 +17,7 @@ interface ExportModalProps {
   mindmapTitle: string
 }
 
-type ExportingType = "png" | "svg" | "pdf" | null
+type ExportingType = "png" | "jpg" | "svg" | "pdf" | null
 
 export function ExportModal({
   open,
@@ -51,6 +51,19 @@ export function ExportModal({
       onOpenChange(false)
     } catch (err) {
       error(err instanceof Error ? err.message : "PNG export failed")
+    } finally {
+      setExportingType(null)
+    }
+  }
+
+  const handleExportJPG = async () => {
+    setExportingType("jpg")
+    try {
+      await exportToJPG(getNodes(), `${mindmapTitle}.jpg`)
+      success("JPG exported successfully")
+      onOpenChange(false)
+    } catch (err) {
+      error(err instanceof Error ? err.message : "JPG export failed")
     } finally {
       setExportingType(null)
     }
@@ -134,6 +147,23 @@ export function ExportModal({
               <span className="text-sm font-medium">PNG</span>
               <span className="text-[11px] text-muted-foreground leading-tight">
                 High-res image
+              </span>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="h-auto flex-col gap-1.5 py-3"
+              onClick={handleExportJPG}
+              disabled={isAnyExporting}
+            >
+              {exportingType === "jpg" ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <FileImage className="h-5 w-5" />
+              )}
+              <span className="text-sm font-medium">JPG</span>
+              <span className="text-[11px] text-muted-foreground leading-tight">
+                Compressed
               </span>
             </Button>
 

@@ -607,6 +607,9 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
           onNodeDragStop={handleNodeDragStop}
           nodeTypes={nodeTypes}
           defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+          defaultEdgeOptions={{
+            style: { strokeWidth: 2, stroke: '#b1b1b7' },
+          }}
           fitView={true}
           fitViewOptions={{ padding: 0.2, maxZoom: 1, minZoom: 0.5 }}
           minZoom={0.1}

@@ -80,22 +80,6 @@ function setHandlePositions(nodes: MindMapNode[], direction: 'TB' | 'RL' | 'BI')
   })
 }
 
-// Wrapper: apply dagre layout then set handle positions
-function layoutAndSetHandles(
-  nodes: MindMapNode[],
-  edgesList: Edge[],
-  direction: 'TB' | 'RL' | 'BI',
-  anchorNodeId?: string,
-): MindMapNode[] {
-  // Only anchor the root for TB layout. For RL and BI, anchoring the root
-  // at its original (TB) position would reverse the intended direction —
-  // dagre places the root on the right for RL, but anchoring shifts it back
-  // to the left, making the tree appear as LR instead.
-  const effectiveAnchor = direction === 'TB' ? anchorNodeId : undefined
-  const positioned = applyDagreLayout(nodes, edgesList, { direction, anchorNodeId: effectiveAnchor })
-  return setHandlePositions(positioned, direction)
-}
-
 interface ClipboardData {
   type: 'mindmap-nodes'
   version: 1
@@ -389,13 +373,8 @@ export function useMindMapStore(documentId?: string) {
         newNode,
       ]
 
-      // Get current edges + new edge for dagre computation
-      const allEdges = [...edges, newEdge]
-
-      // Find root node to anchor
-      const rootNode = allNodes.find(n => (n.data.level ?? 0) === 0)
-
-      return layoutAndSetHandles(allNodes, allEdges, layoutDirection, rootNode?.id)
+      setNodes(allNodes)
+      return allNodes
     })
 
     // Also add the edge to edge state
@@ -442,13 +421,11 @@ export function useMindMapStore(documentId?: string) {
         newNode,
       ]
 
-      const allEdges = [...edges, newEdge]
-      const rootNode = allNodes.find(n => (n.data.level ?? 0) === 0)
-
       // Also add edge
       setEdges((eds) => [...eds, newEdge])
 
-      return layoutAndSetHandles(allNodes, allEdges, layoutDirection, rootNode?.id)
+      setNodes(allNodes)
+      return allNodes
     })
 
     return newNodeId
@@ -493,6 +470,10 @@ export function useMindMapStore(documentId?: string) {
     setEdges((eds) =>
       eds.map((edge) => {
         if (edge.id === edgeId) {
+          // Merge style object if provided in updates
+          if (updates.style) {
+            return { ...edge, ...updates, style: { ...edge.style, ...updates.style } }
+          }
           return { ...edge, ...updates }
         }
         return edge
@@ -529,14 +510,8 @@ export function useMindMapStore(documentId?: string) {
     const remainingNodes = nodes.filter(n => !idsToRemove.has(n.id))
     const remainingEdges = edges.filter(e => !idsToRemove.has(e.source) && !idsToRemove.has(e.target))
 
-    // Re-layout remaining tree
-    const rootNode = remainingNodes.find(n => (n.data.level ?? 0) === 0)
-    if (rootNode && remainingNodes.length > 0) {
-      const repositioned = layoutAndSetHandles(remainingNodes, remainingEdges, layoutDirection, rootNode.id)
-      setNodes(repositioned)
-    } else {
-      setNodes(remainingNodes)
-    }
+    // Update nodes and edges
+    setNodes(remainingNodes)
     setEdges(remainingEdges)
   }, [saveHistory, nodes, edges, findAllDescendants, setNodes, setEdges, layoutDirection])
 
@@ -624,14 +599,8 @@ export function useMindMapStore(documentId?: string) {
         }]
       : filteredEdges
 
-    // Re-layout with dagre
-    const rootNode = finalNodes.find(n => (n.data.level ?? 0) === 0)
-    if (rootNode && finalNodes.length > 0) {
-      const repositioned = layoutAndSetHandles(finalNodes, updatedEdges, layoutDirection, rootNode.id)
-      setNodes(repositioned)
-    } else {
-      setNodes(finalNodes)
-    }
+    // Update nodes and edges
+    setNodes(finalNodes)
     setEdges(updatedEdges)
   }, [saveHistory, nodes, edges, findAllDescendants, setNodes, setEdges, layoutDirection])
 
@@ -748,12 +717,10 @@ export function useMindMapStore(documentId?: string) {
         })
       }
 
-      // Combine with existing and run dagre layout
+      // Combine with existing
       const allNodes = [...nodes, ...newNodes]
       const allEdges = [...edges, ...newEdges]
-      const rootNode = allNodes.find(n => (n.data.level ?? 0) === 0)
-      const repositioned = layoutAndSetHandles(allNodes, allEdges, layoutDirection, rootNode?.id)
-      setNodes(repositioned)
+      setNodes(allNodes)
       setEdges(allEdges)
     } else if (clipboard) {
       // Fallback: single-node paste from in-memory clipboard
@@ -788,9 +755,7 @@ export function useMindMapStore(documentId?: string) {
 
         const allNodes = [...nodes, newNode]
         const allEdges = [...edges, newEdge]
-        const rootNode = allNodes.find(n => (n.data.level ?? 0) === 0)
-        const repositioned = layoutAndSetHandles(allNodes, allEdges, layoutDirection, rootNode?.id)
-        setNodes(repositioned)
+        setNodes(allNodes)
         setEdges(allEdges)
       } else {
         // Paste at same level (no parent connection, no layout needed)

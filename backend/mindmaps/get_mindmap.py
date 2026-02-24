@@ -1,6 +1,5 @@
 import argparse
 import json
-import base64
 from pathlib import Path
 from datetime import datetime
 from fastapi import HTTPException
@@ -24,7 +23,6 @@ def get_mindmap(token: str, mindmap_id: str) -> dict:
             m.owner_id,
             m.created_at,
             m.updated_at,
-            m.yjs_state,
             u.id as owner_id,
             u.email as owner_email,
             u.name as owner_name,
@@ -41,7 +39,7 @@ def get_mindmap(token: str, mindmap_id: str) -> dict:
         conn.close()
         raise HTTPException(status_code=404, detail="Mind map not found")
 
-    mindmap_db_id, title, owner_id, created_at, updated_at, yjs_state_bytes, owner_id, owner_email, owner_name, owner_created_at = row
+    mindmap_db_id, title, owner_id, created_at, updated_at, owner_id, owner_email, owner_name, owner_created_at = row
 
     # Check access control: user must be owner OR collaborator
     cursor.execute("""
@@ -80,11 +78,6 @@ def get_mindmap(token: str, mindmap_id: str) -> dict:
     cursor.close()
     conn.close()
 
-    # Encode yjs_state to base64 if exists
-    yjs_state_base64 = None
-    if yjs_state_bytes:
-        yjs_state_base64 = base64.b64encode(yjs_state_bytes).decode('utf-8')
-
     # Create owner User object
     owner = User(
         id=owner_id,
@@ -102,7 +95,6 @@ def get_mindmap(token: str, mindmap_id: str) -> dict:
         updated_at=updated_at,
         owner=owner,
         collaborators_count=collaborators_count,
-        yjs_state=yjs_state_base64,
         current_user_permission=current_user_permission
     )
 

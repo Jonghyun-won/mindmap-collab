@@ -13,7 +13,7 @@ def delete_mindmap(token: str, mindmap_id: str) -> dict:
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Check if mind map exists and user is owner
+    # Check if mind map exists and get owner
     cur.execute(
         "SELECT owner_id FROM mindmaps WHERE id = %s",
         (mindmap_id,)
@@ -27,22 +27,32 @@ def delete_mindmap(token: str, mindmap_id: str) -> dict:
 
     owner_id = row[0]
 
-    if owner_id != user_id:
+    # Check if user is owner
+    is_owner = (owner_id == user_id)
+
+    if is_owner:
+        # Owner: delete entire mindmap
+        cur.execute("DELETE FROM mindmaps WHERE id = %s", (mindmap_id,))
+        conn.commit()
         cur.close()
         conn.close()
-        return {"error": "You do not have permission to delete this mind map", "status": 403}
+        return {"message": "Mind map deleted successfully"}
+    else:
+        # Collaborator: leave (remove from collaborators)
+        cur.execute("""
+            DELETE FROM collaborators
+            WHERE mindmap_id = %s AND user_id = %s
+        """, (mindmap_id, user_id))
 
-    # Delete mind map (collaborators cascade automatically)
-    cur.execute(
-        "DELETE FROM mindmaps WHERE id = %s",
-        (mindmap_id,)
-    )
+        if cur.rowcount == 0:
+            cur.close()
+            conn.close()
+            return {"error": "You are not a collaborator", "status": 403}
 
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    return {"message": "Mind map deleted successfully"}
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"message": "Left shared mindmap successfully"}
 
 
 if __name__ == "__main__":

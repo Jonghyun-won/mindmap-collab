@@ -34,9 +34,6 @@ def login(request: LoginRequest) -> LoginResponse:
     if not is_active:
         raise AuthenticationError("계정이 비활성화되었습니다")
 
-    if not email_verified:
-        raise ValueError("EMAIL_NOT_VERIFIED")
-
     token = create_jwt_token(str(user_id))
 
     user = User(

@@ -4,7 +4,7 @@ from utils.auth_helper import verify_jwt_token
 def delete_collaborator(token: str, mindmap_id: str, collaborator_user_id: str) -> dict:
     """Remove a collaborator from a mind map.
 
-    Owner or admin can remove any collaborator.
+    Owner or collaborators with edit/admin permission can remove any collaborator.
     Collaborators can remove themselves.
     """
     payload = verify_jwt_token(token)
@@ -35,10 +35,10 @@ def delete_collaborator(token: str, mindmap_id: str, collaborator_user_id: str) 
             """, (mindmap_id, user_id))
 
             perm_row = cursor.fetchone()
-            if not perm_row or perm_row[0] != 'admin':
+            if not perm_row or perm_row[0] not in ['admin', 'edit']:
                 cursor.close()
                 conn.close()
-                raise PermissionError("Only owner, admin, or self can remove collaborator")
+                raise PermissionError("Only owner, collaborators with edit/admin permission, or self can remove collaborator")
 
     # Delete collaborator
     cursor.execute("""

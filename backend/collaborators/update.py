@@ -5,7 +5,7 @@ from mindmaps.model import Collaborator, User, UpdateCollaboratorPermissionReque
 def update_collaborator_permission(token: str, mindmap_id: str, collaborator_user_id: str, request: UpdateCollaboratorPermissionRequest) -> dict:
     """Update collaborator permission.
 
-    Only owner or admin can update permissions.
+    Owner or collaborators with edit/admin permission can update permissions.
     """
     payload = verify_jwt_token(token)
     user_id = payload["user_id"]
@@ -32,10 +32,10 @@ def update_collaborator_permission(token: str, mindmap_id: str, collaborator_use
         """, (mindmap_id, user_id))
 
         perm_row = cursor.fetchone()
-        if not perm_row or perm_row[0] != 'admin':
+        if not perm_row or perm_row[0] not in ['admin', 'edit']:
             cursor.close()
             conn.close()
-            raise PermissionError("Only owner or admin can update permissions")
+            raise PermissionError("Only owner or collaborators with edit/admin permission can update permissions")
 
     # Update permission
     cursor.execute("""

@@ -5,7 +5,7 @@ from mindmaps.model import AddCollaboratorRequest, Collaborator, User
 def add_collaborator(token: str, mindmap_id: str, request: AddCollaboratorRequest) -> dict:
     """Add a collaborator to a mind map.
 
-    Only owner or admin collaborators can add new collaborators.
+    Owner or collaborators with edit/admin permission can add new collaborators.
     """
     payload = verify_jwt_token(token)
     user_id = payload["user_id"]
@@ -32,10 +32,10 @@ def add_collaborator(token: str, mindmap_id: str, request: AddCollaboratorReques
         """, (mindmap_id, user_id))
 
         perm_row = cursor.fetchone()
-        if not perm_row or perm_row[0] != 'admin':
+        if not perm_row or perm_row[0] not in ['admin', 'edit']:
             cursor.close()
             conn.close()
-            raise PermissionError("Only owner or admin can add collaborators")
+            raise PermissionError("Only owner or collaborators with edit/admin permission can add collaborators")
 
     # Find user by email
     cursor.execute("SELECT id FROM users WHERE email = %s", (request.user_email,))

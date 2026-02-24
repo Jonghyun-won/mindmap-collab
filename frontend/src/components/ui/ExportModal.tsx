@@ -10,7 +10,6 @@ import { useToast } from "@/hooks/useToast"
 interface ExportModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  mindmapId: string
   mindmapTitle: string
 }
 
@@ -19,7 +18,6 @@ type ExportingType = "jpg" | "pdf" | null
 export function ExportModal({
   open,
   onOpenChange,
-  mindmapId,
   mindmapTitle,
 }: ExportModalProps) {
   const { getNodes } = useReactFlow()

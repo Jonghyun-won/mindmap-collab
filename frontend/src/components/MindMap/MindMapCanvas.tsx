@@ -707,7 +707,6 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
       <ExportModal
         open={showExport}
         onOpenChange={setShowExport}
-        mindmapId={documentId || ''}
         mindmapTitle={mindMapTitle}
       />
       </div>

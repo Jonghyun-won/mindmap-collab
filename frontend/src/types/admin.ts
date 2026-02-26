@@ -27,3 +27,21 @@ export interface AdminUserListResponse {
   page: number
   limit: number
 }
+
+export interface AdminMindMap {
+  id: string
+  title: string
+  owner_id: string
+  owner_email: string
+  owner_name: string | null
+  collaborators_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminMindMapListResponse {
+  mindmaps: AdminMindMap[]
+  total: number
+  page: number
+  limit: number
+}

@@ -361,7 +361,7 @@ export default function EditorToolbar({
                 <span>빠른 하위 추가</span>
               </div>
               <div className="flex justify-between items-center gap-4">
-                <kbd className="kbd">F2</kbd>
+                <kbd className="kbd">F3</kbd>
                 <span>노드 편집</span>
               </div>
               <div className="flex justify-between items-center gap-4">

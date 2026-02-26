@@ -33,6 +33,11 @@ class ConfirmEmailRequest(BaseModel):
 class ResendConfirmationRequest(BaseModel):
     email: EmailStr
 
+class UpdateProfileRequest(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    team: Optional[str] = Field(None, max_length=100)
+    phone: Optional[str] = Field(None, max_length=20)
+
 # Response models
 class LoginResponse(BaseModel):
     token: str

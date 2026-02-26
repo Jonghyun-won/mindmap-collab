@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Search, Shield, ShieldOff, UserCheck, UserX, Users, Map, CheckCircle, XCircle, MailCheck } from 'lucide-react'
+import { ArrowLeft, Search, Shield, ShieldOff, UserCheck, UserX, Users, Map, CheckCircle, XCircle, MailCheck, ExternalLink, Edit2 } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
-import type { AdminUser, AdminDashboardStats, AdminUserListResponse } from '@/types/admin'
+import type { AdminUser, AdminDashboardStats, AdminUserListResponse, AdminMindMap, AdminMindMapListResponse } from '@/types/admin'
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<'users' | 'mindmaps'>('users')
   const [stats, setStats] = useState<AdminDashboardStats | null>(null)
   const [users, setUsers] = useState<AdminUser[]>([])
   const [total, setTotal] = useState(0)
@@ -14,6 +15,14 @@ export default function AdminDashboard() {
   const [searchInput, setSearchInput] = useState('')
   const [loading, setLoading] = useState(true)
   const limit = 15
+
+  const [mindmaps, setMindmaps] = useState<AdminMindMap[]>([])
+  const [mindmapsTotal, setMindmapsTotal] = useState(0)
+  const [mindmapsPage, setMindmapsPage] = useState(1)
+  const [mindmapsSearch, setMindmapsSearch] = useState('')
+  const [mindmapsSearchInput, setMindmapsSearchInput] = useState('')
+  const [editingMindmapId, setEditingMindmapId] = useState<string | null>(null)
+  const [editingMindmapTitle, setEditingMindmapTitle] = useState('')
 
   const fetchStats = useCallback(async () => {
     try {
@@ -37,10 +46,31 @@ export default function AdminDashboard() {
     }
   }, [page, search])
 
+  const fetchMindMaps = async () => {
+    try {
+      const response: AdminMindMapListResponse = await apiClient.getAdminMindMaps(
+        mindmapsPage,
+        20,
+        mindmapsSearch || undefined,
+        'updated_desc'
+      )
+      setMindmaps(response.mindmaps)
+      setMindmapsTotal(response.total)
+    } catch (err) {
+      console.error('Failed to load mindmaps:', err)
+    }
+  }
+
   useEffect(() => {
     fetchStats()
     fetchUsers()
   }, [fetchStats, fetchUsers])
+
+  useEffect(() => {
+    if (activeTab === 'mindmaps') {
+      fetchMindMaps()
+    }
+  }, [mindmapsPage, mindmapsSearch, activeTab])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,6 +106,42 @@ export default function AdminDashboard() {
       fetchStats()
     } catch (error: any) {
       alert(error.message || '상태 변경에 실패했습니다')
+    }
+  }
+
+  const handleMindmapSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setMindmapsPage(1)
+    setMindmapsSearch(mindmapsSearchInput)
+  }
+
+  const startEditingMindmap = (id: string, title: string) => {
+    setEditingMindmapId(id)
+    setEditingMindmapTitle(title)
+  }
+
+  const saveMindmapRename = async (id: string) => {
+    if (!editingMindmapTitle.trim()) {
+      setEditingMindmapId(null)
+      return
+    }
+
+    try {
+      await apiClient.updateMindMap(id, editingMindmapTitle.trim())
+      setMindmaps(mindmaps.map(m => m.id === id ? { ...m, title: editingMindmapTitle.trim() } : m))
+      setEditingMindmapId(null)
+    } catch (error: any) {
+      console.error('Failed to rename mindmap:', error)
+      alert(error.message || '제목 변경에 실패했습니다. 관리자는 소유자이거나 협업자로 추가되어야 합니다.')
+      setEditingMindmapId(null)
+    }
+  }
+
+  const handleMindmapKeyDown = (id: string, event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      saveMindmapRename(id)
+    } else if (event.key === 'Escape') {
+      setEditingMindmapId(null)
     }
   }
 
@@ -115,6 +181,32 @@ export default function AdminDashboard() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Tab Navigation */}
+        <div className="border-b border-gray-200 mb-6">
+          <div className="flex space-x-8">
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'users'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              사용자 관리
+            </button>
+            <button
+              onClick={() => setActiveTab('mindmaps')}
+              className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'mindmaps'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              마인드맵 관리
+            </button>
+          </div>
+        </div>
+
         {/* Stats Cards */}
         {stats && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -149,29 +241,32 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* Search */}
-        <div className="bg-white rounded-lg border p-4">
-          <form onSubmit={handleSearch} className="flex gap-2">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                className="w-full pl-9 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                placeholder="이메일 또는 이름으로 검색..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-              />
+        {/* Users Tab */}
+        {activeTab === 'users' && (
+          <>
+            {/* Search */}
+            <div className="bg-white rounded-lg border p-4">
+              <form onSubmit={handleSearch} className="flex gap-2">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    className="w-full pl-9 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    placeholder="이메일 또는 이름으로 검색..."
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+                >
+                  검색
+                </button>
+              </form>
             </div>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
-            >
-              검색
-            </button>
-          </form>
-        </div>
 
-        {/* Users Table */}
+            {/* Users Table */}
         <div className="bg-white rounded-lg border overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -331,6 +426,160 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
+          </>
+        )}
+
+        {/* Mindmaps Tab */}
+        {activeTab === 'mindmaps' && (
+          <>
+            {/* Search */}
+            <div className="bg-white rounded-lg border p-4">
+              <form onSubmit={handleMindmapSearch} className="flex gap-2">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    className="w-full pl-9 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    placeholder="제목, 소유자 이메일/이름으로 검색..."
+                    value={mindmapsSearchInput}
+                    onChange={(e) => setMindmapsSearchInput(e.target.value)}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+                >
+                  검색
+                </button>
+              </form>
+            </div>
+
+            {/* Mindmaps Table */}
+            <div className="bg-white rounded-lg border overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-50 border-b">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">제목</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">소유자</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">협업자</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">생성일</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">최종 수정</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">관리</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {mindmaps.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                          마인드맵이 없습니다
+                        </td>
+                      </tr>
+                    ) : (
+                      mindmaps.map((mindmap) => (
+                        <tr key={mindmap.id} className="hover:bg-gray-50 group">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <Map className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                              {editingMindmapId === mindmap.id ? (
+                                <input
+                                  type="text"
+                                  value={editingMindmapTitle}
+                                  onChange={(e) => setEditingMindmapTitle(e.target.value)}
+                                  onBlur={() => saveMindmapRename(mindmap.id)}
+                                  onKeyDown={(e) => handleMindmapKeyDown(mindmap.id, e)}
+                                  autoFocus
+                                  className="flex-1 text-sm font-medium text-gray-900 border-2 border-blue-500 rounded px-2 py-1 focus:outline-none"
+                                />
+                              ) : (
+                                <div className="flex items-center gap-2 flex-1">
+                                  <span className="text-sm font-medium text-gray-900">{mindmap.title}</span>
+                                  <button
+                                    onClick={() => startEditingMindmap(mindmap.id, mindmap.title)}
+                                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-blue-600 rounded"
+                                    title="제목 수정"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div>
+                              <p className="text-sm text-gray-900">{mindmap.owner_name || '-'}</p>
+                              <p className="text-xs text-gray-500">{mindmap.owner_email}</p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center text-sm font-medium text-gray-900">
+                            {mindmap.collaborators_count}명
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">
+                            {formatDate(mindmap.created_at)}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">
+                            {formatDate(mindmap.updated_at)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-center">
+                              <button
+                                onClick={() => window.open(`/editor/${mindmap.id}`, '_blank')}
+                                className="p-1.5 rounded-lg transition-colors text-gray-400 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-1"
+                                title="마인드맵 열기"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {Math.ceil(mindmapsTotal / 20) > 1 && (
+                <div className="px-4 py-3 border-t flex items-center justify-between">
+                  <p className="text-sm text-gray-500">
+                    전체 {mindmapsTotal}개 중 {(mindmapsPage - 1) * 20 + 1}-{Math.min(mindmapsPage * 20, mindmapsTotal)}
+                  </p>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setMindmapsPage(p => Math.max(1, p - 1))}
+                      disabled={mindmapsPage === 1}
+                      className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      이전
+                    </button>
+                    {Array.from({ length: Math.min(5, Math.ceil(mindmapsTotal / 20)) }, (_, i) => {
+                      const pageNum = Math.max(1, Math.min(mindmapsPage - 2, Math.ceil(mindmapsTotal / 20) - 4)) + i
+                      if (pageNum > Math.ceil(mindmapsTotal / 20)) return null
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setMindmapsPage(pageNum)}
+                          className={`px-3 py-1 text-sm border rounded ${
+                            pageNum === mindmapsPage ? 'bg-blue-600 text-white border-blue-600' : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      )
+                    })}
+                    <button
+                      onClick={() => setMindmapsPage(p => Math.min(Math.ceil(mindmapsTotal / 20), p + 1))}
+                      disabled={mindmapsPage === Math.ceil(mindmapsTotal / 20)}
+                      className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      다음
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

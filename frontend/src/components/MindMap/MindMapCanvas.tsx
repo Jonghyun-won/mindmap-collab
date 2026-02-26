@@ -350,8 +350,8 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
 
       // Space key removed - use Tab or Ctrl+Enter for child nodes
 
-      // F2: 현재 노드 편집
-      if (event.key === 'F2' && selectedNode) {
+      // F3: 현재 노드 편집
+      if (event.key === 'F3' && selectedNode) {
         event.preventDefault()
         const node = document.querySelector(`[data-id="${selectedNode}"]`)
         if (node) {

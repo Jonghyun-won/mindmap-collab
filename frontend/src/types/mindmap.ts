@@ -145,6 +145,16 @@ export interface ImportRequest {
   mode?: "replace" | "merge"
 }
 
+// Chapter type for multi-chapter mindmaps
+export interface Chapter {
+  id: string
+  mindmap_id: string
+  title: string
+  position: number
+  created_at: string
+  updated_at: string
+}
+
 // Comment type for node-level comments
 export interface Comment {
   id: string

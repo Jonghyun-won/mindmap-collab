@@ -14,6 +14,7 @@ def update_mindmap(token: str, mindmap_id: str, request: UpdateMindMapRequest) -
     # Verify JWT and extract user_id
     payload = verify_jwt_token(token)
     user_id = payload["user_id"]
+    user_role = payload.get("role", "user")
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -33,7 +34,7 @@ def update_mindmap(token: str, mindmap_id: str, request: UpdateMindMapRequest) -
     # Check permission: user must be owner OR collaborator with 'edit'/'admin' permission
     is_owner = str(mindmap_row[2]) == user_id
 
-    if not is_owner:
+    if not is_owner and user_role != 'admin':
         # Check if user is a collaborator with edit or admin permission
         cursor.execute(
             """

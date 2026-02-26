@@ -29,3 +29,16 @@ def validate_password_strength(password: str) -> tuple[bool, str]:
         return (False, "비밀번호는 최소 6자 이상이어야 합니다")
 
     return (True, "Password is valid")
+
+
+def validate_chapter_title(title: str) -> str:
+    """Validate and normalize chapter title."""
+    if not title or not title.strip():
+        raise ValueError("Chapter title cannot be empty")
+
+    title = title.strip()
+
+    if len(title) > 255:
+        raise ValueError("Chapter title too long (max 255 characters)")
+
+    return title

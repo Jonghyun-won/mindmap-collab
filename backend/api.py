@@ -63,6 +63,16 @@ from invites.accept import accept_invite
 from invites.list import list_invites
 from invites.delete import delete_invite
 
+# Import chapters functions and models
+from chapters.model import Chapter, ChapterDetail, CreateChapterRequest, UpdateChapterRequest, ReorderChaptersRequest
+from chapters.list import list_chapters
+from chapters.create import create_chapter
+from chapters.update import update_chapter as update_chapter_func
+from chapters.delete import delete_chapter
+from chapters.reorder import reorder_chapters
+from chapters.get_chapter import get_chapter
+from chapters.duplicate import duplicate_chapter
+
 # Import auth helper for token verification
 from utils.auth_helper import verify_jwt_token
 from jose import JWTError
@@ -494,6 +504,144 @@ def duplicate_mindmap_endpoint(
         raise
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Chapters Routes
+# ============================================================================
+
+@app.get("/mindmaps/{mindmap_id}/chapters", response_model=list[Chapter])
+def list_chapters_endpoint(
+    mindmap_id: str,
+    token: str = Depends(get_current_user)
+):
+    """List all chapters for mindmap."""
+    try:
+        return list_chapters(token, mindmap_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/mindmaps/{mindmap_id}/chapters", response_model=Chapter, status_code=201)
+def create_chapter_endpoint(
+    mindmap_id: str,
+    request: CreateChapterRequest,
+    token: str = Depends(get_current_user)
+):
+    """Create new chapter."""
+    try:
+        return create_chapter(token, mindmap_id, request)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/mindmaps/{mindmap_id}/chapters/reorder", response_model=list[Chapter])
+def reorder_chapters_endpoint(
+    mindmap_id: str,
+    request: ReorderChaptersRequest,
+    token: str = Depends(get_current_user)
+):
+    """Reorder chapters."""
+    try:
+        return reorder_chapters(token, mindmap_id, request)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/mindmaps/{mindmap_id}/chapters/{chapter_id}", response_model=ChapterDetail)
+def get_chapter_endpoint(
+    mindmap_id: str,
+    chapter_id: str,
+    token: str = Depends(get_current_user)
+):
+    """Get chapter with yjs_state."""
+    try:
+        return get_chapter(token, mindmap_id, chapter_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/mindmaps/{mindmap_id}/chapters/{chapter_id}", response_model=Chapter)
+def update_chapter_endpoint(
+    mindmap_id: str,
+    chapter_id: str,
+    request: UpdateChapterRequest,
+    token: str = Depends(get_current_user)
+):
+    """Update chapter title."""
+    try:
+        return update_chapter_func(token, mindmap_id, chapter_id, request)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/mindmaps/{mindmap_id}/chapters/{chapter_id}/duplicate", response_model=Chapter, status_code=201)
+def duplicate_chapter_endpoint(
+    mindmap_id: str,
+    chapter_id: str,
+    token: str = Depends(get_current_user)
+):
+    """Duplicate chapter with yjs_state."""
+    try:
+        return duplicate_chapter(token, mindmap_id, chapter_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/mindmaps/{mindmap_id}/chapters/{chapter_id}", status_code=204)
+def delete_chapter_endpoint(
+    mindmap_id: str,
+    chapter_id: str,
+    token: str = Depends(get_current_user)
+):
+    """Delete chapter."""
+    try:
+        delete_chapter(token, mindmap_id, chapter_id)
+        return None
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

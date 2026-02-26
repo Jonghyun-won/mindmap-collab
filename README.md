@@ -17,6 +17,56 @@ Real-time collaborative mind mapping application with WebSocket-based synchroniz
 - 🌐 **Web Browser** - No installation required
 - 🔐 **JWT Authentication** - Secure user authentication
 
+## Chapters
+
+Mind map projects support multiple chapters (similar to Excel sheets). Each chapter contains a completely independent node tree with its own real-time collaboration.
+
+### Features
+
+- **Independent Mind Maps**: Each chapter has its own separate node tree
+- **Real-time Collaboration**: Yjs-based real-time synchronization per chapter
+- **Excel-style UI**: Tab bar at the bottom of the editor
+- **Chapter Management**: Add / delete / rename / reorder (drag) / duplicate (right-click menu)
+
+### Database Schema
+
+New table: `chapters`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| mindmap_id | UUID | Foreign key to mindmaps |
+| title | VARCHAR(255) | Chapter name |
+| position | INTEGER | Chapter order |
+| yjs_state | BYTEA | Yjs document state |
+| created_at | TIMESTAMP | Creation date |
+| updated_at | TIMESTAMP | Last modified date |
+
+### WebSocket documentName Format
+
+- **Legacy**: `{mindmap_id}` -- uses mindmaps table
+- **New**: `{mindmap_id}:{chapter_id}` -- uses chapters table
+
+### Chapter API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/mindmaps/{id}/chapters` | List chapters |
+| POST | `/mindmaps/{id}/chapters` | Create chapter |
+| GET | `/mindmaps/{id}/chapters/{chapter_id}` | Get chapter detail |
+| PUT | `/mindmaps/{id}/chapters/{chapter_id}` | Update chapter |
+| DELETE | `/mindmaps/{id}/chapters/{chapter_id}` | Delete chapter |
+| PUT | `/mindmaps/{id}/chapters/reorder` | Reorder chapters |
+| POST | `/mindmaps/{id}/chapters/{chapter_id}/duplicate` | Duplicate chapter |
+
+### Migration
+
+Existing mind maps are automatically migrated to a single "Chapter 1".
+
+Migration files:
+- `backend/migrations/008_chapters.sql` -- Table creation
+- `backend/migrations/009_migrate_existing_mindmaps_to_chapters.sql` -- Data migration
+
 ## Tech Stack
 
 ### Backend
@@ -67,6 +117,16 @@ mindmap-collab-v2/
 │   │   ├── create.py       # Create mind map
 │   │   ├── update.py       # Update mind map
 │   │   └── delete.py       # Delete mind map
+│   ├── chapters/           # Chapter service
+│   │   ├── model.py        # Pydantic models
+│   │   ├── list.py         # List chapters
+│   │   ├── get.py          # Get chapter detail
+│   │   ├── create.py       # Create chapter
+│   │   ├── update.py       # Update chapter title
+│   │   ├── delete.py       # Delete chapter
+│   │   ├── reorder.py      # Reorder chapters
+│   │   └── duplicate.py    # Duplicate chapter
+│   ├── migrations/         # SQL migration files
 │   └── collaborators/      # Collaborator service
 │       ├── model.py        # Pydantic models
 │       ├── list.py         # List collaborators
@@ -398,10 +458,11 @@ Get token from `/auth/login` or `/auth/register` endpoints.
 
 ## Development Phases
 
-- ✅ **Phase 1:** Foundation (Auth, Database, Basic UI)
-- ✅ **Phase 2:** Mind map visualization (React Flow integration)
-- ✅ **Phase 3:** Real-time collaboration (Yjs + WebSocket)
-- ✅ **Phase 4:** Presence & Polish (Cursors, UX improvements)
+- Phase 1: Foundation (Auth, Database, Basic UI)
+- Phase 2: Mind map visualization (React Flow integration)
+- Phase 3: Real-time collaboration (Yjs + WebSocket)
+- Phase 4: Presence & Polish (Cursors, UX improvements)
+- Phase 5: Chapters (Multiple independent node trees per mind map)
 
 ## License
 

@@ -13,12 +13,13 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { Map, Users, Wifi, WifiOff, History } from 'lucide-react'
+import { Map, Users, Wifi, WifiOff, History, Loader2 } from 'lucide-react'
 
 import CustomNode from './CustomNode'
 import EditorToolbar from './EditorToolbar'
 import ShareModal from './ShareModal'
 import CollaboratorCursors from './CollaboratorCursors'
+import ChapterTabs from './ChapterTabs'
 import { ChangeHistory } from './ChangeHistory'
 import { NodeDetailPanel } from '@/components/ui/NodeDetailPanel'
 import { ExportModal } from '@/components/ui/ExportModal'
@@ -28,7 +29,7 @@ import { useMindMapStore } from '@/hooks/useMindMapStore'
 import { useSaveMindMap } from '@/hooks/useSaveMindMap'
 import { usePresence } from '@/hooks/usePresence'
 import { useAuth } from '@/contexts/AuthContext'
-import type { MindMapNode as MindMapNodeType } from '@/types/mindmap'
+import type { MindMapNode as MindMapNodeType, Chapter } from '@/types/mindmap'
 
 const nodeTypes: NodeTypes = {
   custom: CustomNode,
@@ -50,6 +51,11 @@ export default function MindMapCanvas(props: MindMapCanvasProps) {
 }
 
 function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCanvasProps) {
+  // Chapter state (moved before useMindMapStore so activeChapterId is available)
+  const [chapters, setChapters] = useState<Chapter[]>([])
+  const [activeChapterId, setActiveChapterId] = useState<string | null>(null)
+  const [isChapterLoading, setIsChapterLoading] = useState(false)
+
   const {
     nodes,
     edges,
@@ -76,7 +82,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
     isConnected,
     onlineUsers,
     provider,
-  } = useMindMapStore(documentId)
+  } = useMindMapStore(documentId, activeChapterId)
 
   // Track dragging state
   const dragStateRef = useRef<{
@@ -114,9 +120,10 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
 
   // Manual save handler
   const handleSave = useCallback(async () => {
-    // Save to localStorage (immediate)
+    // Save to localStorage (immediate) - use chapter-aware key
     if (documentId) {
-      localStorage.setItem(`mindmap_${documentId}`, JSON.stringify({ nodes, edges }))
+      const storageKey = `mindmap_${documentId}_chapter_${activeChapterId || 'default'}`
+      localStorage.setItem(storageKey, JSON.stringify({ nodes, edges }))
       console.log('Saved to localStorage:', nodes.length, 'nodes')
     }
 
@@ -128,7 +135,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
       console.warn('Backend save failed, but localStorage saved:', error)
       // Don't show alert - localStorage save is enough for now
     }
-  }, [documentId, mindMapTitle, nodes, edges, saveMindMap])
+  }, [documentId, activeChapterId, mindMapTitle, nodes, edges, saveMindMap])
 
   const [selectedNode, setSelectedNode] = useState<string | undefined>()
   const [selectedNodes, setSelectedNodes] = useState<string[]>([])
@@ -145,6 +152,122 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
     setSelectedNode(selectedId)
     setSelectedNodes(nodes.map((n: any) => n.id))
   }, [])
+
+  // Fetch chapters on mount
+  useEffect(() => {
+    const fetchChapters = async () => {
+      try {
+        const chapterList = await apiClient.listChapters(documentId)
+        setChapters(chapterList)
+
+        // Check URL query parameter for chapter ID
+        const searchParams = new URLSearchParams(window.location.search)
+        const chapterIdFromUrl = searchParams.get('chapter')
+
+        if (chapterIdFromUrl && chapterList.find(c => c.id === chapterIdFromUrl)) {
+          setActiveChapterId(chapterIdFromUrl)
+        } else if (chapterList.length > 0) {
+          setActiveChapterId(chapterList[0].id)
+        }
+      } catch (error) {
+        console.error('Failed to fetch chapters:', error)
+      }
+    }
+
+    fetchChapters()
+  }, [documentId])
+
+  // Chapter handlers
+  const handleChapterChange = useCallback(async (chapterId: string) => {
+    setIsChapterLoading(true)
+
+    // Update URL query parameter
+    const url = new URL(window.location.href)
+    url.searchParams.set('chapter', chapterId)
+    window.history.replaceState({}, '', url.toString())
+
+    // Switch chapter
+    setActiveChapterId(chapterId)
+
+    // Brief delay for Yjs sync
+    await new Promise(resolve => setTimeout(resolve, 300))
+    setIsChapterLoading(false)
+  }, [])
+
+  const handleAddChapter = useCallback(async () => {
+    try {
+      const newChapter = await apiClient.createChapter(documentId, `챕터 ${chapters.length + 1}`)
+      setChapters(prev => [...prev, newChapter])
+      setActiveChapterId(newChapter.id)
+
+      // Update URL query parameter
+      const url = new URL(window.location.href)
+      url.searchParams.set('chapter', newChapter.id)
+      window.history.replaceState({}, '', url.toString())
+    } catch (error) {
+      console.error('Failed to create chapter:', error)
+    }
+  }, [documentId, chapters.length])
+
+  const handleRenameChapter = useCallback(async (chapterId: string, newTitle: string) => {
+    try {
+      const updated = await apiClient.updateChapter(documentId, chapterId, newTitle)
+      setChapters(prev => prev.map(c => c.id === chapterId ? updated : c))
+    } catch (error) {
+      console.error('Failed to rename chapter:', error)
+    }
+  }, [documentId])
+
+  const handleDeleteChapter = useCallback(async (chapterId: string) => {
+    if (chapters.length <= 1) {
+      alert('마지막 챕터는 삭제할 수 없습니다')
+      return
+    }
+
+    if (!confirm('이 챕터를 삭제하시겠습니까?')) return
+
+    try {
+      await apiClient.deleteChapter(documentId, chapterId)
+      const newChapters = chapters.filter(c => c.id !== chapterId)
+      setChapters(newChapters)
+
+      // If deleted chapter was active, switch to first remaining chapter
+      if (activeChapterId === chapterId && newChapters.length > 0) {
+        setActiveChapterId(newChapters[0].id)
+
+        const url = new URL(window.location.href)
+        url.searchParams.set('chapter', newChapters[0].id)
+        window.history.replaceState({}, '', url.toString())
+      }
+    } catch (error) {
+      console.error('Failed to delete chapter:', error)
+    }
+  }, [documentId, chapters, activeChapterId])
+
+  const handleReorderChapters = useCallback(async (chapterIds: string[]) => {
+    try {
+      const reordered = await apiClient.reorderChapters(documentId, chapterIds)
+      setChapters(reordered)
+    } catch (error) {
+      console.error('Failed to reorder chapters:', error)
+    }
+  }, [documentId])
+
+  const handleDuplicateChapter = useCallback(async (chapterId: string) => {
+    try {
+      const duplicated = await apiClient.duplicateChapter(documentId, chapterId)
+      setChapters(prev => [...prev, duplicated])
+      setActiveChapterId(duplicated.id)
+
+      // Update URL query parameter
+      const url = new URL(window.location.href)
+      url.searchParams.set('chapter', duplicated.id)
+      window.history.replaceState({}, '', url.toString())
+    } catch (error) {
+      console.error('Failed to duplicate chapter:', error)
+      alert('챕터 복제에 실패했습니다')
+    }
+  }, [documentId])
 
   // Handle node label update from CustomNode
   useEffect(() => {
@@ -591,8 +714,19 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
         />
       </div>
 
-      {/* ReactFlow Canvas - fills remaining screen */}
-      <div style={{ width: '100%', height: 'calc(100% - 60px)' }} onMouseMove={handleMouseMove}>
+      {/* ReactFlow Canvas - fills remaining screen (minus toolbar 60px and chapter tabs 40px) */}
+      <div
+        className="relative"
+        style={{ width: '100%', height: chapters.length > 0 ? 'calc(100% - 100px)' : 'calc(100% - 60px)' }}
+        onMouseMove={handleMouseMove}
+      >
+        {/* Chapter transition loading overlay */}
+        {isChapterLoading && (
+          <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-50 pointer-events-none">
+            <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+          </div>
+        )}
+        <div className={`w-full h-full transition-opacity duration-300 ${isChapterLoading ? 'opacity-40' : 'opacity-100'}`}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -693,6 +827,7 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
             />
           )}
         </ReactFlow>
+        </div>
       </div>
 
       {/* Share Modal */}
@@ -709,6 +844,20 @@ function MindMapCanvasInner({ mindMapTitle, documentId, onTitleSave }: MindMapCa
         onOpenChange={setShowExport}
         mindmapTitle={mindMapTitle}
       />
+
+      {/* Chapter Tabs - Excel sheet style */}
+      {activeChapterId && chapters.length > 0 && (
+        <ChapterTabs
+          chapters={chapters}
+          activeChapterId={activeChapterId}
+          onChapterChange={handleChapterChange}
+          onAddChapter={handleAddChapter}
+          onRenameChapter={handleRenameChapter}
+          onDeleteChapter={handleDeleteChapter}
+          onReorderChapters={handleReorderChapters}
+          onDuplicateChapter={handleDuplicateChapter}
+        />
+      )}
       </div>
 
       {/* EdgeDetailPanel - shows when an edge is selected */}

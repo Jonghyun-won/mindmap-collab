@@ -19,6 +19,7 @@ import type {
   Collaborator,
   AddCollaboratorRequest,
   UpdateCollaboratorPermissionRequest,
+  Chapter,
 } from '@/types/mindmap'
 
 const TOKEN_KEY = 'auth_token'
@@ -340,6 +341,45 @@ class ApiClient {
         method: 'POST',
       }
     )
+  }
+
+  // ========== Chapters Methods ==========
+
+  async listChapters(mindmapId: string): Promise<Chapter[]> {
+    return this.request<Chapter[]>(`/mindmaps/${mindmapId}/chapters`)
+  }
+
+  async createChapter(mindmapId: string, title: string): Promise<Chapter> {
+    return this.request<Chapter>(`/mindmaps/${mindmapId}/chapters`, {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    })
+  }
+
+  async updateChapter(mindmapId: string, chapterId: string, title: string): Promise<Chapter> {
+    return this.request<Chapter>(`/mindmaps/${mindmapId}/chapters/${chapterId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ title }),
+    })
+  }
+
+  async deleteChapter(mindmapId: string, chapterId: string): Promise<void> {
+    await this.request<void>(`/mindmaps/${mindmapId}/chapters/${chapterId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async reorderChapters(mindmapId: string, chapterIds: string[]): Promise<Chapter[]> {
+    return this.request<Chapter[]>(`/mindmaps/${mindmapId}/chapters/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ chapter_ids: chapterIds }),
+    })
+  }
+
+  async duplicateChapter(mindmapId: string, chapterId: string): Promise<Chapter> {
+    return this.request<Chapter>(`/mindmaps/${mindmapId}/chapters/${chapterId}/duplicate`, {
+      method: 'POST',
+    })
   }
 
   // ========== Users Methods ==========

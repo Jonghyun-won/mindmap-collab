@@ -4,11 +4,16 @@ info:
   version: 1.0.0
   description: |
     RESTful API for real-time collaborative mind mapping application.
-    Supports user authentication, mind map CRUD operations, and WebSocket-based
-    real-time collaboration using Yjs CRDT.
+    Supports user authentication, mind map CRUD operations, chapter management,
+    and WebSocket-based real-time collaboration using Yjs CRDT.
 
     ## Authentication
     All authenticated endpoints require a JWT Bearer token in the Authorization header.
+
+    ## Chapters
+    Each mind map can contain multiple chapters (similar to Excel sheets).
+    Each chapter has its own independent node tree and Yjs document state.
+    WebSocket documentName format: `{mindmap_id}:{chapter_id}`.
 
     ## Real-time Collaboration
     WebSocket endpoint at `/ws/mindmap/{id}` provides real-time Yjs document synchronization.
@@ -629,6 +634,421 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /mindmaps/{mindmap_id}/chapters:
+    get:
+      summary: List all chapters for a mind map
+      tags:
+        - Chapters
+      parameters:
+        - name: mindmap_id
+          in: path
+          required: true
+          description: Mind map UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Chapter list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Chapter'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (user does not have access)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mind map not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Create new chapter
+      tags:
+        - Chapters
+      parameters:
+        - name: mindmap_id
+          in: path
+          required: true
+          description: Mind map UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  description: Chapter title
+                  example: "Chapter 1"
+      responses:
+        '201':
+          description: Chapter created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chapter'
+        '400':
+          description: Invalid request (validation error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (user does not have edit permission)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mind map not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /mindmaps/{mindmap_id}/chapters/{chapter_id}:
+    get:
+      summary: Get chapter detail with Yjs state
+      tags:
+        - Chapters
+      parameters:
+        - name: mindmap_id
+          in: path
+          required: true
+          description: Mind map UUID
+          schema:
+            type: string
+            format: uuid
+        - name: chapter_id
+          in: path
+          required: true
+          description: Chapter UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Chapter detail with base64 encoded Yjs state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterDetail'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (user does not have access)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Chapter or mind map not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update chapter title
+      tags:
+        - Chapters
+      parameters:
+        - name: mindmap_id
+          in: path
+          required: true
+          description: Mind map UUID
+          schema:
+            type: string
+            format: uuid
+        - name: chapter_id
+          in: path
+          required: true
+          description: Chapter UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  description: Updated chapter title
+                  example: "Renamed Chapter"
+      responses:
+        '200':
+          description: Chapter updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chapter'
+        '400':
+          description: Invalid request (validation error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (user does not have edit permission)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Chapter or mind map not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Delete chapter
+      tags:
+        - Chapters
+      parameters:
+        - name: mindmap_id
+          in: path
+          required: true
+          description: Mind map UUID
+          schema:
+            type: string
+            format: uuid
+        - name: chapter_id
+          in: path
+          required: true
+          description: Chapter UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Chapter deleted successfully
+        '400':
+          description: Cannot delete the last remaining chapter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Bad Request"
+                message: "Cannot delete the last chapter"
+                details: null
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (user does not have edit permission)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Chapter or mind map not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /mindmaps/{mindmap_id}/chapters/reorder:
+    put:
+      summary: Reorder chapters
+      tags:
+        - Chapters
+      parameters:
+        - name: mindmap_id
+          in: path
+          required: true
+          description: Mind map UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - chapter_ids
+              properties:
+                chapter_ids:
+                  type: array
+                  description: Ordered list of chapter UUIDs representing the new order
+                  items:
+                    type: string
+                    format: uuid
+                  example:
+                    - "aaa14567-e89b-12d3-a456-426614174001"
+                    - "bbb24567-e89b-12d3-a456-426614174002"
+                    - "ccc34567-e89b-12d3-a456-426614174003"
+      responses:
+        '200':
+          description: Chapters reordered successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Chapter'
+        '400':
+          description: Invalid request (missing or mismatched chapter IDs)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (user does not have edit permission)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mind map not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /mindmaps/{mindmap_id}/chapters/{chapter_id}/duplicate:
+    post:
+      summary: Duplicate chapter
+      tags:
+        - Chapters
+      parameters:
+        - name: mindmap_id
+          in: path
+          required: true
+          description: Mind map UUID
+          schema:
+            type: string
+            format: uuid
+        - name: chapter_id
+          in: path
+          required: true
+          description: Chapter UUID to duplicate
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: Chapter duplicated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chapter'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (user does not have edit permission)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Chapter or mind map not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     BearerAuth:
@@ -898,6 +1318,60 @@ components:
           description: Total number of pages
           example: 3
 
+    Chapter:
+      type: object
+      required:
+        - id
+        - mindmap_id
+        - title
+        - position
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Chapter unique identifier
+          example: "aaa14567-e89b-12d3-a456-426614174001"
+        mindmap_id:
+          type: string
+          format: uuid
+          description: Parent mind map UUID
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Chapter title
+          example: "Chapter 1"
+        position:
+          type: integer
+          minimum: 0
+          description: Chapter order position (0-indexed)
+          example: 0
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2024-01-16T14:20:00Z"
+
+    ChapterDetail:
+      allOf:
+        - $ref: '#/components/schemas/Chapter'
+        - type: object
+          properties:
+            yjs_state:
+              type: string
+              format: byte
+              nullable: true
+              description: Base64-encoded Yjs document state (BYTEA)
+              example: "AQIDBA=="
+
     ErrorResponse:
       type: object
       required:
@@ -925,3 +1399,5 @@ tags:
     description: Mind map CRUD operations
   - name: Collaborators
     description: Manage mind map collaborators and permissions
+  - name: Chapters
+    description: Manage mind map chapters (multiple independent node trees per mind map)

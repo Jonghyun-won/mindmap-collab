@@ -93,8 +93,12 @@ interface HistoryState {
   edges: Edge[]
 }
 
-export function useMindMapStore(documentId?: string) {
-  const storageKey = documentId ? `mindmap_${documentId}` : null
+export function useMindMapStore(documentId?: string, chapterId?: string | null) {
+  // Build chapter-aware keys
+  const compositeDocumentId = documentId && chapterId
+    ? `${documentId}:${chapterId}`
+    : documentId || undefined
+  const storageKey = compositeDocumentId ? `mindmap_${documentId}_chapter_${chapterId || 'default'}` : null
 
   const [nodes, setNodes] = useState<MindMapNode[]>([
     // Level 0: Root
@@ -212,7 +216,7 @@ export function useMindMapStore(documentId?: string) {
     syncLocalEdges,
     provider,
   } = useYjsCollaboration({
-    documentId: documentId || 'default',
+    documentId: compositeDocumentId || 'default',
     onNodesChange: (remoteNodes) => {
       isRemoteChangeRef.current = true
       setNodes(remoteNodes)

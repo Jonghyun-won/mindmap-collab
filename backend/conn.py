@@ -25,20 +25,37 @@ def _get_connection_pool():
         )
     return _connection_pool
 
+class PooledConnection:
+    """Wrapper that returns connection to pool on close()"""
+    def __init__(self, conn: connection):
+        self._conn = conn
+        self._closed = False
+
+    def close(self):
+        """Return connection to pool instead of closing"""
+        if not self._closed:
+            release_db_connection(self._conn)
+            self._closed = True
+
+    def __getattr__(self, name):
+        """Delegate all other attributes to the real connection"""
+        return getattr(self._conn, name)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            self._conn.rollback()
+        else:
+            self._conn.commit()
+        self.close()
+
 def get_db_connection() -> connection:
     """Get a connection from the pool"""
     connection_pool = _get_connection_pool()
     conn = connection_pool.getconn()
-
-    # Wrap close() to return to pool instead of closing
-    original_close = conn.close
-    def pool_close():
-        release_db_connection(conn)
-        # Restore original close to prevent double-return
-        conn.close = original_close
-    conn.close = pool_close
-
-    return conn
+    return PooledConnection(conn)
 
 def release_db_connection(conn: connection):
     """Return a connection to the pool"""

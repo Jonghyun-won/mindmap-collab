@@ -174,7 +174,7 @@ export default function ChapterTabs({
   const sortedChapters = [...chapters].sort((a, b) => a.position - b.position)
 
   return (
-    <div className="h-[40px] bg-gray-100 border-t border-gray-300 flex items-stretch select-none">
+    <div className="h-[48px] bg-gray-100 border-t border-gray-300 flex items-stretch select-none">
       {/* Scrollable tabs container */}
       <div
         ref={tabsContainerRef}
@@ -202,7 +202,7 @@ export default function ChapterTabs({
               onDoubleClick={() => handleDoubleClick(chapter.id, chapter.title)}
               onContextMenu={(e) => handleContextMenu(e, chapter.id)}
               className={[
-                'flex items-center gap-1 px-3 min-w-[100px] max-w-[200px] cursor-pointer border-r border-gray-300 transition-colors',
+                'flex items-center gap-1 px-4 py-2 min-w-[120px] max-w-[200px] cursor-pointer border-r border-gray-300 transition-colors',
                 isActive
                   ? 'bg-white border-t-2 border-t-blue-500 -mt-px font-medium text-gray-900'
                   : 'bg-gray-200 hover:bg-gray-150 text-gray-600 hover:text-gray-800',
@@ -212,7 +212,7 @@ export default function ChapterTabs({
             >
               {/* Drag handle */}
               {!readOnly && !isEditing && (
-                <GripVertical className="w-3 h-3 text-gray-400 flex-shrink-0 cursor-grab active:cursor-grabbing" />
+                <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0 cursor-grab active:cursor-grabbing" />
               )}
 
               {/* Tab content */}
@@ -228,7 +228,7 @@ export default function ChapterTabs({
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                <span className="text-sm truncate">
+                <span className="text-base truncate">
                   {chapter.title}
                 </span>
               )}
@@ -241,10 +241,10 @@ export default function ChapterTabs({
       {!readOnly && (
         <button
           onClick={onAddChapter}
-          className="flex items-center justify-center w-[40px] border-l border-gray-300 bg-gray-100 hover:bg-gray-200 transition-colors"
+          className="flex items-center justify-center w-[48px] border-l border-gray-300 bg-gray-100 hover:bg-gray-200 transition-colors"
           title="챕터 추가"
         >
-          <Plus className="w-4 h-4 text-gray-500" />
+          <Plus className="w-5 h-5 text-gray-500" />
         </button>
       )}
 

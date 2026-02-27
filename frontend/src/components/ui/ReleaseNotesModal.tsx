@@ -39,7 +39,7 @@ export default function ReleaseNotesModal() {
           className="fixed bottom-4 left-4 z-50 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-full shadow-sm hover:text-blue-600 hover:border-blue-300 hover:shadow transition-all"
         >
           <Megaphone className="w-3.5 h-3.5" />
-          v6
+          v8
         </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
@@ -50,20 +50,34 @@ export default function ReleaseNotesModal() {
           </DialogTitle>
         </DialogHeader>
         <div className="overflow-y-auto flex-1 space-y-5 pr-2 -mr-2">
-          <Section date="2026-02-26">
+          <Section date="v8 - 2026-02-27">
             <Category
-              icon="✨"
-              title="새로운 기능"
+              icon="🎯"
+              title="주요 기능"
               items={[
-                '관리자 대시보드 - 마인드맵 관리 탭 추가 (전체 마인드맵 목록 조회, 검색, 제목 수정)',
-                '내 프로필 수정 기능 추가 (이름, 팀, 전화번호 수정 가능)',
+                '챕터 시스템: Excel 시트처럼 여러 챕터로 마인드맵 관리',
+                '  - 챕터별 독립적인 노드 트리',
+                '  - 드래그로 순서 변경, 더블클릭으로 이름 수정',
+                '  - 우클릭 메뉴로 복제/삭제',
+                '  - 챕터별 실시간 협업 지원',
               ]}
             />
             <Category
               icon="🔧"
               title="개선사항"
               items={[
-                '노드 텍스트 변경 단축키 F2→F3 변경',
+                '실시간 협업 WebSocket 연결 안정화',
+                '관리자 대시보드에서 모든 마인드맵 관리 가능',
+                '프로필 수정 기능 추가',
+                '노드 편집 단축키 변경 (F2 → F3)',
+              ]}
+            />
+            <Category
+              icon="🎨"
+              title="UI/UX"
+              items={[
+                '공유 버튼 한글 표시 ("공유하기")',
+                '챕터 탭 UI 크기 증가로 사용성 향상',
               ]}
             />
           </Section>

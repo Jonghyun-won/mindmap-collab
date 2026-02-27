@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Improved (2026-02-27)
+- Chapter tab UI size increased for better visibility and usability
+  - Tab bar height: 40px → 48px
+  - Tab text size increased
+  - Tab padding and spacing improved
+  - Plus button and icons enlarged
+- Release notes updated to v8
+
+
 ### Added
 - Mind map chapter feature (Excel sheet-style)
   - Tab bar UI at the bottom of the editor

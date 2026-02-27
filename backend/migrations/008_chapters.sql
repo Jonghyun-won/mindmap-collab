@@ -22,7 +22,8 @@ ALTER TABLE public.chapters ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policy: Users can view chapters of accessible mindmaps
 -- (owner or collaborator with any permission)
-CREATE POLICY IF NOT EXISTS select_chapters ON public.chapters
+DROP POLICY IF EXISTS select_chapters ON public.chapters;
+CREATE POLICY select_chapters ON public.chapters
     FOR SELECT USING (
         EXISTS (
             SELECT 1 FROM public.mindmaps m
@@ -38,7 +39,8 @@ CREATE POLICY IF NOT EXISTS select_chapters ON public.chapters
     );
 
 -- RLS Policy: Users with edit/admin permission can insert chapters
-CREATE POLICY IF NOT EXISTS insert_chapters ON public.chapters
+DROP POLICY IF EXISTS insert_chapters ON public.chapters;
+CREATE POLICY insert_chapters ON public.chapters
     FOR INSERT WITH CHECK (
         EXISTS (
             SELECT 1 FROM public.mindmaps m
@@ -56,7 +58,8 @@ CREATE POLICY IF NOT EXISTS insert_chapters ON public.chapters
     );
 
 -- RLS Policy: Users with edit/admin permission can update chapters
-CREATE POLICY IF NOT EXISTS update_chapters ON public.chapters
+DROP POLICY IF EXISTS update_chapters ON public.chapters;
+CREATE POLICY update_chapters ON public.chapters
     FOR UPDATE USING (
         EXISTS (
             SELECT 1 FROM public.mindmaps m
@@ -74,7 +77,8 @@ CREATE POLICY IF NOT EXISTS update_chapters ON public.chapters
     );
 
 -- RLS Policy: Users with edit/admin permission can delete chapters
-CREATE POLICY IF NOT EXISTS delete_chapters ON public.chapters
+DROP POLICY IF EXISTS delete_chapters ON public.chapters;
+CREATE POLICY delete_chapters ON public.chapters
     FOR DELETE USING (
         EXISTS (
             SELECT 1 FROM public.mindmaps m

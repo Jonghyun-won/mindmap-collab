@@ -1,14 +1,13 @@
 -- Migrate existing mindmaps to chapters
 -- Migration: 009_migrate_existing_mindmaps_to_chapters.sql
--- Each existing mindmap gets a default chapter with its yjs_state
+-- Each existing mindmap gets a default chapter
 
--- Insert default "Chapter 1" for all existing mindmaps that don't have chapters yet
-INSERT INTO public.chapters (mindmap_id, title, position, yjs_state, created_at, updated_at)
+-- Insert default "챕터 1" for all existing mindmaps that don't have chapters yet
+INSERT INTO public.chapters (mindmap_id, title, position, created_at, updated_at)
 SELECT
     id,
     '챕터 1',
     1,
-    yjs_state,
     created_at,
     updated_at
 FROM public.mindmaps

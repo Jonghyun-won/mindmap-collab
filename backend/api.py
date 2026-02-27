@@ -111,6 +111,26 @@ app.add_middleware(
 )
 
 
+import traceback
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler for detailed error logging"""
+    print("=" * 80)
+    print(f"ERROR at {request.method} {request.url.path}")
+    print(f"Error Type: {type(exc).__name__}")
+    print(f"Error Message: {str(exc)}")
+    print("=" * 80)
+    traceback.print_exc()
+    print("=" * 80)
+    
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal error: {type(exc).__name__}: {str(exc)}"}
+    )
+
+
 # Authentication Dependency
 def get_current_user(authorization: str = Header(...)) -> str:
     """Extract and verify JWT token from Authorization header.

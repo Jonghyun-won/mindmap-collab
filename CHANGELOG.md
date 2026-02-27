@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed (2026-02-27)
 - Backend server crash on startup - missing Request import in global exception handler
 - FastAPI deprecation warnings - updated Query `regex` parameter to `pattern`
+- Database connection exhaustion - added connection pooling (max 20 connections, reuses connections)
+  - Fixes "MaxClientsInSessionMode: max clients reached" error on Railway production
 
 ### Improved (2026-02-27)
 - Chapter tab UI size increased for better visibility and usability

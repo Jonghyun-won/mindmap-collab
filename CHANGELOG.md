@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed (2026-02-27)
+- Backend server crash on startup - missing Request import in global exception handler
+- FastAPI deprecation warnings - updated Query `regex` parameter to `pattern`
+
 ### Improved (2026-02-27)
 - Chapter tab UI size increased for better visibility and usability
   - Tab bar height: 40px → 48px

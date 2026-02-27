@@ -1,6 +1,6 @@
 import os
 import uuid
-from fastapi import FastAPI, HTTPException, Header, Depends, Query
+from fastapi import FastAPI, HTTPException, Header, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -348,7 +348,7 @@ def update_profile_endpoint(
 def list_mindmaps_endpoint(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    sort: str = Query("updated_desc", regex="^(created_asc|created_desc|updated_asc|updated_desc|title_asc|title_desc)$"),
+    sort: str = Query("updated_desc", pattern="^(created_asc|created_desc|updated_asc|updated_desc|title_asc|title_desc)$"),
     token: str = Depends(get_current_user)
 ):
     """List user's mind maps with pagination.
@@ -1030,7 +1030,7 @@ def admin_mindmaps_endpoint(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     search: str = Query(None),
-    sort: str = Query("updated_desc", regex="^(updated_desc|updated_asc|created_desc|created_asc)$"),
+    sort: str = Query("updated_desc", pattern="^(updated_desc|updated_asc|created_desc|created_asc)$"),
     token: str = Depends(get_current_user)
 ):
     """List all mindmaps with owner info and collaborator counts."""

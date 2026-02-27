@@ -55,3 +55,10 @@ export interface ResendConfirmationRequest {
 export interface ResendConfirmationResponse {
   message: string
 }
+
+// UpdateProfileRequest schema
+export interface UpdateProfileRequest {
+  name?: string | null
+  team?: string | null
+  phone?: string | null
+}

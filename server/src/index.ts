@@ -1,6 +1,6 @@
 import { Server } from '@hocuspocus/server';
 import { config } from './config';
-import { database } from './extensions/database';
+import { database, parseDocumentName } from './extensions/database';
 import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
@@ -19,21 +19,44 @@ const hocuspocus = Server.configure({
   extensions: [database],
 
   async onConnect({ documentName, socketId }) {
-    console.log(`✅ Client ${socketId} connected to document: ${documentName}`);
+    const { mindmapId, chapterId } = parseDocumentName(documentName);
+
+    if (chapterId) {
+      console.log(`✅ Client ${socketId} connected: mindmap=${mindmapId}, chapter=${chapterId}`);
+    } else {
+      console.log(`✅ Client ${socketId} connected (legacy): mindmap=${mindmapId}`);
+    }
     return {};
   },
 
   async onDisconnect({ documentName, clientsCount, socketId }) {
-    console.log(`❌ Client ${socketId} disconnected from document: ${documentName}`);
-    console.log(`   Remaining clients: ${clientsCount}`);
+    const { mindmapId, chapterId } = parseDocumentName(documentName);
+
+    if (chapterId) {
+      console.log(`❌ Client ${socketId} disconnected: mindmap=${mindmapId}, chapter=${chapterId}, remaining=${clientsCount}`);
+    } else {
+      console.log(`❌ Client ${socketId} disconnected (legacy): mindmap=${mindmapId}, remaining=${clientsCount}`);
+    }
   },
 
   async onChange({ documentName }) {
-    console.log(`📝 Document changed: ${documentName}`);
+    const { mindmapId, chapterId } = parseDocumentName(documentName);
+
+    if (chapterId) {
+      console.log(`📝 Document changed: mindmap=${mindmapId}, chapter=${chapterId}`);
+    } else {
+      console.log(`📝 Document changed (legacy): mindmap=${mindmapId}`);
+    }
   },
 
   async onLoadDocument({ documentName }) {
-    console.log(`📄 Loading document: ${documentName}`);
+    const { mindmapId, chapterId } = parseDocumentName(documentName);
+
+    if (chapterId) {
+      console.log(`📄 Loading document: mindmap=${mindmapId}, chapter=${chapterId}`);
+    } else {
+      console.log(`📄 Loading document (legacy): mindmap=${mindmapId}`);
+    }
   },
 });
 

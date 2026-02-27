@@ -11,7 +11,7 @@ import uvicorn
 load_dotenv()
 
 # Import models
-from auth.model import RegisterRequest, LoginRequest, LoginResponse, RegisterResponse, User, ConfirmEmailRequest, ResendConfirmationRequest
+from auth.model import RegisterRequest, LoginRequest, LoginResponse, RegisterResponse, User, ConfirmEmailRequest, ResendConfirmationRequest, UpdateProfileRequest
 from mindmaps.model import (
     MindMap,
     MindMapDetail,
@@ -30,6 +30,7 @@ from auth.logout import logout
 from auth.verify_token import verify_token
 from auth.confirm_email import confirm_email
 from auth.resend_confirmation import resend_confirmation
+from auth.update_profile import update_profile
 
 # Import mindmap functions
 from mindmaps.list import list_mindmaps
@@ -98,6 +99,104 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ============================================================================
+# Database Migration System
+# ============================================================================
+
+@app.on_event("startup")
+async def run_migrations():
+    """Run pending database migrations on startup"""
+    from conn import get_db_connection
+    import glob
+
+    print("[MIGRATION] Starting database migration check...")
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+
+        # Create migrations tracking table
+        print("[MIGRATION] Creating migrations table if not exists...")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS migrations (
+                id SERIAL PRIMARY KEY,
+                filename VARCHAR(255) UNIQUE NOT NULL,
+                executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+        print("[MIGRATION] Migrations table ready")
+
+        # Mark 001-008 as already executed (skip actual execution)
+        # These migrations created the base schema that already exists
+        print("[MIGRATION] Marking 001-008 as already executed...")
+        migration_dir = os.path.join(os.path.dirname(__file__), "migrations")
+
+        for i in range(1, 9):
+            # Find the actual filename
+            pattern = os.path.join(migration_dir, f"{i:03d}_*.sql")
+            matching_files = glob.glob(pattern)
+
+            if matching_files:
+                filename = os.path.basename(matching_files[0])
+                # Insert if not exists
+                cursor.execute("""
+                    INSERT INTO migrations (filename)
+                    VALUES (%s)
+                    ON CONFLICT (filename) DO NOTHING
+                """, (filename,))
+
+        conn.commit()
+        print("[MIGRATION] Marked 001-008 as executed (base schema)")
+
+        # Get already executed migrations
+        cursor.execute("SELECT filename FROM migrations")
+        executed = {row[0] for row in cursor.fetchall()}
+        print(f"[MIGRATION] Already executed: {sorted(executed)}")
+
+        # Run pending migrations from backend/migrations/
+        migration_files = sorted(glob.glob(os.path.join(migration_dir, "*.sql")))
+        pending_count = 0
+
+        for filepath in migration_files:
+            filename = os.path.basename(filepath)
+
+            if filename not in executed:
+                pending_count += 1
+                print(f"[MIGRATION] Running migration: {filename}")
+
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        sql = f.read()
+
+                    cursor.execute(sql)
+                    cursor.execute(
+                        "INSERT INTO migrations (filename) VALUES (%s)",
+                        (filename,)
+                    )
+                    conn.commit()
+                    print(f"[MIGRATION] ✓ Migration {filename} completed successfully")
+
+                except Exception as e:
+                    conn.rollback()
+                    print(f"[MIGRATION] ✗ Migration {filename} failed: {e}")
+                    raise
+
+        if pending_count == 0:
+            print("[MIGRATION] No pending migrations. Database is up to date.")
+        else:
+            print(f"[MIGRATION] Successfully applied {pending_count} pending migration(s)")
+
+    except Exception as e:
+        conn.rollback()
+        print(f"[MIGRATION] Migration system error: {e}")
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+        print("[MIGRATION] Migration check completed")
 
 
 # Authentication Dependency
@@ -287,6 +386,24 @@ def get_current_user_endpoint(token: str = Depends(get_current_user)):
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/auth/profile", response_model=User)
+def update_profile_endpoint(
+    request: UpdateProfileRequest,
+    token: str = Depends(get_current_user)
+):
+    """Update current user profile (name, team, phone)"""
+    try:
+        user = update_profile(token, request.model_dump(exclude_none=True))
+        return user
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    except ValueError as e:
+        status_code = 404 if "not found" in str(e).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -836,6 +953,91 @@ def admin_verify_user_endpoint(
         return verify_user_email(user_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get("/admin/mindmaps")
+def admin_mindmaps_endpoint(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: str = Query(None),
+    sort: str = Query("updated_desc", regex="^(updated_desc|updated_asc|created_desc|created_asc)$"),
+    token: str = Depends(get_current_user)
+):
+    """List all mindmaps with owner info and collaborator counts."""
+    require_admin(token)
+
+    from conn import get_db_connection
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Build WHERE clause for search
+    where_clause = ""
+    params = []
+    if search:
+        where_clause = "WHERE (m.title ILIKE %s OR u.email ILIKE %s OR u.name ILIKE %s)"
+        search_pattern = f"%{search}%"
+        params.extend([search_pattern, search_pattern, search_pattern])
+
+    # Build ORDER BY clause
+    order_mapping = {
+        "updated_desc": "m.updated_at DESC",
+        "updated_asc": "m.updated_at ASC",
+        "created_desc": "m.created_at DESC",
+        "created_asc": "m.created_at ASC"
+    }
+    order_clause = order_mapping.get(sort, "m.updated_at DESC")
+
+    # Get total count
+    cursor.execute(f"""
+        SELECT COUNT(*)
+        FROM mindmaps m
+        JOIN users u ON u.id = m.owner_id
+        {where_clause}
+    """, params)
+    total = cursor.fetchone()[0]
+
+    # Get paginated mindmaps with owner info and collaborator count
+    offset = (page - 1) * limit
+    cursor.execute(f"""
+        SELECT
+            m.id,
+            m.title,
+            m.owner_id,
+            u.email as owner_email,
+            u.name as owner_name,
+            (SELECT COUNT(*) FROM collaborators WHERE mindmap_id = m.id) as collaborators_count,
+            m.created_at,
+            m.updated_at
+        FROM mindmaps m
+        JOIN users u ON u.id = m.owner_id
+        {where_clause}
+        ORDER BY {order_clause}
+        LIMIT %s OFFSET %s
+    """, params + [limit, offset])
+
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return {
+        "mindmaps": [
+            {
+                "id": str(row[0]),
+                "title": row[1],
+                "owner_id": str(row[2]),
+                "owner_email": row[3],
+                "owner_name": row[4],
+                "collaborators_count": row[5],
+                "created_at": row[6].isoformat(),
+                "updated_at": row[7].isoformat()
+            }
+            for row in rows
+        ],
+        "total": total,
+        "page": page,
+        "limit": limit
+    }
 
 
 # ============================================================================

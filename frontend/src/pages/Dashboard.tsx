@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trash2, Edit2, Copy } from 'lucide-react'
+import { Trash2, Edit2, Copy, UserCircle } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { MindMap } from '@/types/mindmap'
 import { useAuth } from '@/contexts/AuthContext'
 import ReleaseNotesModal from '@/components/ui/ReleaseNotesModal'
+import ProfileEditModal from '@/components/ProfileEditModal'
 
 export default function Dashboard() {
   const { user, logout } = useAuth()
@@ -14,6 +15,14 @@ export default function Dashboard() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [duplicating, setDuplicating] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
+
+  // Drag selection state
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
+  const [dragEnd, setDragEnd] = useState<{ x: number; y: number } | null>(null)
+
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -133,6 +142,81 @@ export default function Dashboard() {
     return date.toLocaleDateString('ko-KR')
   }
 
+  // Drag selection handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Only start drag selection if clicking on the grid container itself (not on cards)
+    if ((e.target as HTMLElement).closest('[data-mindmap-card]')) {
+      return
+    }
+
+    setIsDragging(true)
+    setDragStart({ x: e.clientX, y: e.clientY })
+    setDragEnd({ x: e.clientX, y: e.clientY })
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !dragStart) return
+
+    setDragEnd({ x: e.clientX, y: e.clientY })
+
+    // Update selected cards based on drag box intersection
+    const dragBox = getDragBoxRect()
+    if (!dragBox) return
+
+    const newSelectedIds = new Set<string>()
+    mindMaps.forEach((mindMap) => {
+      const cardElement = document.querySelector(`[data-mindmap-id="${mindMap.id}"]`)
+      if (!cardElement) return
+
+      const cardRect = cardElement.getBoundingClientRect()
+      if (isIntersecting(dragBox, cardRect)) {
+        newSelectedIds.add(mindMap.id)
+      }
+    })
+
+    setSelectedIds(newSelectedIds)
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+    setDragStart(null)
+    setDragEnd(null)
+  }
+
+  const getDragBoxRect = () => {
+    if (!dragStart || !dragEnd) return null
+
+    return {
+      left: Math.min(dragStart.x, dragEnd.x),
+      top: Math.min(dragStart.y, dragEnd.y),
+      right: Math.max(dragStart.x, dragEnd.x),
+      bottom: Math.max(dragStart.y, dragEnd.y),
+    }
+  }
+
+  const isIntersecting = (
+    box1: { left: number; top: number; right: number; bottom: number },
+    box2: DOMRect
+  ) => {
+    return !(
+      box1.right < box2.left ||
+      box1.left > box2.right ||
+      box1.bottom < box2.top ||
+      box1.top > box2.bottom
+    )
+  }
+
+  const toggleCardSelection = (id: string, event: React.MouseEvent) => {
+    event.stopPropagation()
+    const newSelectedIds = new Set(selectedIds)
+    if (newSelectedIds.has(id)) {
+      newSelectedIds.delete(id)
+    } else {
+      newSelectedIds.add(id)
+    }
+    setSelectedIds(newSelectedIds)
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -145,6 +229,13 @@ export default function Dashboard() {
               </svg>
             </div>
             <h1 className="text-xl font-bold text-gray-900">FunnelMind</h1>
+            <button
+              onClick={() => setProfileModalOpen(true)}
+              className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1.5"
+            >
+              <UserCircle className="w-4 h-4" />
+              내 프로필 수정
+            </button>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-600">{user?.email}</span>
@@ -206,13 +297,35 @@ export default function Dashboard() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+          >
             {mindMaps.map((mindMap) => (
               <div
                 key={mindMap.id}
+                data-mindmap-card
+                data-mindmap-id={mindMap.id}
                 onClick={() => editingId !== mindMap.id && navigate(`/editor/${mindMap.id}`)}
-                className="bg-white rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-md cursor-pointer transition-all p-5 relative group"
+                className={`bg-white rounded-lg border cursor-pointer transition-all p-5 relative group ${
+                  selectedIds.has(mindMap.id)
+                    ? 'border-blue-500 shadow-md ring-2 ring-blue-200'
+                    : 'border-gray-200 hover:border-blue-500 hover:shadow-md'
+                }`}
               >
+                {/* Selection checkbox */}
+                <div className="absolute top-3 left-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(mindMap.id)}
+                    onChange={(e) => toggleCardSelection(mindMap.id, e as unknown as React.MouseEvent)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-5 h-5 text-blue-600 border-gray-300 rounded cursor-pointer focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
                 {/* Action buttons */}
                 <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
@@ -272,12 +385,28 @@ export default function Dashboard() {
                 </p>
               </div>
             ))}
+
+            {/* Drag selection box */}
+            {isDragging && dragStart && dragEnd && (
+              <div
+                className="fixed border-2 border-blue-500 bg-blue-100 bg-opacity-30 pointer-events-none z-50"
+                style={{
+                  left: `${Math.min(dragStart.x, dragEnd.x)}px`,
+                  top: `${Math.min(dragStart.y, dragEnd.y)}px`,
+                  width: `${Math.abs(dragEnd.x - dragStart.x)}px`,
+                  height: `${Math.abs(dragEnd.y - dragStart.y)}px`,
+                }}
+              />
+            )}
           </div>
         )}
       </main>
 
       {/* Release Notes Button */}
       <ReleaseNotesModal />
+
+      {/* Profile Edit Modal */}
+      <ProfileEditModal isOpen={profileModalOpen} onClose={() => setProfileModalOpen(false)} />
     </div>
   )
 }

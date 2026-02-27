@@ -6,6 +6,7 @@ import type {
   ConfirmEmailRequest,
   ResendConfirmationRequest,
   ResendConfirmationResponse,
+  UpdateProfileRequest,
   User,
 } from '@/types/auth'
 
@@ -147,6 +148,13 @@ class ApiClient {
   async verifyToken(): Promise<User> {
     return this.request<User>('/auth/me', {
       method: 'GET',
+    })
+  }
+
+  async updateProfile(data: UpdateProfileRequest): Promise<User> {
+    return this.request<User>('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
     })
   }
 
@@ -373,6 +381,22 @@ class ApiClient {
     return this.request<any>(`/admin/users/${userId}/verify`, {
       method: 'PUT',
     })
+  }
+
+  async getAdminMindMaps(
+    page: number = 1,
+    limit: number = 20,
+    search?: string,
+    sort: string = 'updated_desc'
+  ): Promise<any> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      sort,
+    })
+    if (search) params.append('search', search)
+
+    return this.request<any>(`/admin/mindmaps?${params}`)
   }
 }
 

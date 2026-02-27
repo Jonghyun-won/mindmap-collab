@@ -3,18 +3,61 @@ import os
 import sys
 from dotenv import load_dotenv
 import psycopg2
+from psycopg2 import pool
 from psycopg2.extensions import connection
 
 load_dotenv()
 
+# Connection pool (최소 1개, 최대 20개 연결 유지)
+_connection_pool = None
+
+def _get_connection_pool():
+    global _connection_pool
+    if _connection_pool is None:
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            raise ValueError("DATABASE_URL environment variable not set")
+
+        _connection_pool = pool.SimpleConnectionPool(
+            minconn=1,
+            maxconn=20,
+            dsn=database_url
+        )
+    return _connection_pool
+
 def get_db_connection() -> connection:
-    database_url = os.getenv("DATABASE_URL")
+    """Get a connection from the pool"""
+    connection_pool = _get_connection_pool()
+    conn = connection_pool.getconn()
 
-    if not database_url:
-        raise ValueError("DATABASE_URL environment variable not set")
+    # Wrap close() to return to pool instead of closing
+    original_close = conn.close
+    def pool_close():
+        release_db_connection(conn)
+        # Restore original close to prevent double-return
+        conn.close = original_close
+    conn.close = pool_close
 
-    conn = psycopg2.connect(database_url)
     return conn
+
+def release_db_connection(conn: connection):
+    """Return a connection to the pool"""
+    connection_pool = _get_connection_pool()
+    connection_pool.putconn(conn)
+
+class DatabaseConnection:
+    """Context manager for database connections"""
+    def __enter__(self) -> connection:
+        self.conn = get_db_connection()
+        return self.conn
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.conn:
+            if exc_type is not None:
+                self.conn.rollback()
+            else:
+                self.conn.commit()
+            release_db_connection(self.conn)
 
 def main(test: bool = True) -> dict:
     result = {
